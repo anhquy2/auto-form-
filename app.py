@@ -20,13 +20,13 @@ from pydantic import BaseModel
 app = FastAPI(title="Auto Google Form SaaS")
 
 # ==============================================================================
-# CẤU HÌNH GIÁ DỊCH VỤ & MẬT KHẨU ADMIN
+# CẤU HÌNH GIÁ DỊCH VỤ & TÀI KHOẢN ADMIN DUY NHẤT
 # ==============================================================================
 PRICE_PER_SURVEY = 250  # 250 VNĐ / 1 phiếu khảo sát thành công
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "quy2026")  # Mật khẩu vào trang cộng tiền
+ADMIN_USERNAME = "anhquy19"  # Tài khoản Admin duy nhất
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "anhquy1907")  # Mật khẩu đăng nhập của Admin
 DB_PATH = "survey_saas.db"
 
-# Lưu phiên đăng nhập (token -> username) và tiến trình chạy ngầm
 SESSIONS: Dict[str, str] = {}
 TASKS: Dict[str, Dict[str, Any]] = {}
 DB_LOCK = threading.Lock()
@@ -46,9 +46,10 @@ DEFAULT_TEXT_SAMPLES = [
 ]
 
 
-# ==============================================================================
-# KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE (TÀI KHOẢN, SỐ DƯ, LỊCH SỬ GIAO DỊCH)
-# ==============================================================================
+def hash_password(password: str, salt: str) -> str:
+    return hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+
+
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -82,6 +83,18 @@ def init_db():
             )
             """
         )
+        # Tự động tạo sẵn duy nhất 1 tài khoản Admin để người khác không đăng ký trùng
+        existing_admin = conn.execute(
+            "SELECT id FROM users WHERE username = ?", (ADMIN_USERNAME.lower(),)
+        ).fetchone()
+        if not existing_admin:
+            salt = secrets.token_hex(8)
+            pw_hash = hash_password(ADMIN_PASSWORD, salt)
+            now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            conn.execute(
+                "INSERT INTO users (username, password_hash, salt, balance, created_at) VALUES (?, ?, ?, 0, ?)",
+                (ADMIN_USERNAME.lower(), pw_hash, salt, now_str),
+            )
         conn.commit()
         conn.close()
 
@@ -89,12 +102,7 @@ def init_db():
 init_db()
 
 
-def hash_password(password: str, salt: str) -> str:
-    return hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-
-
 def adjust_balance(username: str, delta: int, tx_type: str, note: str) -> int:
-    """Cộng hoặc trừ tiền an toàn và ghi lịch sử giao dịch."""
     with DB_LOCK:
         conn = get_db()
         row = conn.execute("SELECT balance FROM users WHERE username = ?", (username,)).fetchone()
@@ -126,9 +134,12 @@ def get_current_user(authorization: Optional[str] = Header(default=None)) -> str
     return username
 
 
-# ==============================================================================
-# MODELS DỮ LIỆU API
-# ==============================================================================
+def get_admin_user(username: str = Depends(get_current_user)) -> str:
+    if username != ADMIN_USERNAME.lower():
+        raise HTTPException(status_code=403, detail="Từ chối truy cập: Chỉ tài khoản Admin mới có quyền này!")
+    return username
+
+
 class AuthRequest(BaseModel):
     username: str
     password: str
@@ -149,14 +160,9 @@ class RunRequest(BaseModel):
 
 
 class AdminTopupRequest(BaseModel):
-    admin_password: str
     target_username: str
     amount: int
     note: str = "Admin nạp tiền thủ công"
-
-
-class AdminListRequest(BaseModel):
-    admin_password: str
 
 
 # ==============================================================================
@@ -165,6 +171,8 @@ class AdminListRequest(BaseModel):
 @app.post("/api/register")
 def api_register(req: AuthRequest):
     uname = req.username.strip().lower()
+    if uname == ADMIN_USERNAME.lower():
+        raise HTTPException(status_code=400, detail="Tên đăng nhập này đã được hệ thống sử dụng.")
     if not re.match(r"^[a-z0-9_]{3,24}$", uname):
         raise HTTPException(
             status_code=400,
@@ -192,7 +200,13 @@ def api_register(req: AuthRequest):
 
     token = secrets.token_hex(24)
     SESSIONS[token] = uname
-    return {"token": token, "username": uname, "balance": 0, "price_per_survey": PRICE_PER_SURVEY}
+    return {
+        "token": token,
+        "username": uname,
+        "balance": 0,
+        "is_admin": False,
+        "price_per_survey": PRICE_PER_SURVEY,
+    }
 
 
 @app.post("/api/login")
@@ -212,6 +226,7 @@ def api_login(req: AuthRequest):
         "token": token,
         "username": uname,
         "balance": row["balance"],
+        "is_admin": (uname == ADMIN_USERNAME.lower()),
         "price_per_survey": PRICE_PER_SURVEY,
     }
 
@@ -233,18 +248,17 @@ def api_me(username: str = Depends(get_current_user)):
     return {
         "username": user_row["username"],
         "balance": user_row["balance"],
+        "is_admin": (username == ADMIN_USERNAME.lower()),
         "price_per_survey": PRICE_PER_SURVEY,
         "transactions": [dict(r) for r in tx_rows],
     }
 
 
 # ==============================================================================
-# API QUẢN TRỊ ADMIN (XEM USER & CỘNG TIỀN)
+# API QUẢN TRỊ ADMIN (CHỈ TÀI KHOẢN ADMIN MỚI GỌI ĐƯỢC)
 # ==============================================================================
-@app.post("/api/admin/users")
-def api_admin_users(req: AdminListRequest):
-    if req.admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Sai mật khẩu quản trị Admin!")
+@app.get("/api/admin/users")
+def api_admin_users(admin_username: str = Depends(get_admin_user)):
     with DB_LOCK:
         conn = get_db()
         rows = conn.execute(
@@ -255,9 +269,7 @@ def api_admin_users(req: AdminListRequest):
 
 
 @app.post("/api/admin/topup")
-def api_admin_topup(req: AdminTopupRequest):
-    if req.admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Sai mật khẩu quản trị Admin!")
+def api_admin_topup(req: AdminTopupRequest, admin_username: str = Depends(get_admin_user)):
     uname = req.target_username.strip().lower()
     if req.amount == 0:
         raise HTTPException(status_code=400, detail="Số tiền phải khác 0.")
@@ -495,7 +507,6 @@ def execute_campaign_worker(task_id: str, username: str, req: RunRequest):
             sleep_sec = random.uniform(min(req.delay_min, req.delay_max), max(req.delay_min, req.delay_max))
             time.sleep(max(0.2, sleep_sec))
 
-    # Tự động hoàn tiền cho các phiếu chưa chạy hoặc bị lỗi
     unfulfilled = total - task["success"]
     if unfulfilled > 0:
         refund_amount = unfulfilled * PRICE_PER_SURVEY
