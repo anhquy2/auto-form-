@@ -3,37 +3,107 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Auto Google Form - Hệ thống rải dữ liệu theo tỷ lệ</title>
+  <title>Auto Google Form - Hệ thống rải khảo sát tự động</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
-  <div class="max-w-5xl mx-auto px-4 py-8">
-    <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6 mb-8">
-      <div>
-        <h1 class="text-2xl font-bold text-indigo-400">Auto Google Form Studio by VanQuy</h1>
-        <p class="text-slate-400 text-sm mt-1">Quét cấu trúc tự động & phân phối định mức tỷ lệ phần trăm chính xác</p>
+
+  <!-- ===================================================================== -->
+  <!-- MÀN HÌNH ĐĂNG NHẬP / ĐĂNG KÝ TÀI KHOẢN                                -->
+  <!-- ===================================================================== -->
+  <div id="authScreen" class="min-h-screen flex items-center justify-center px-4">
+    <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+      <div class="text-center mb-6">
+        <h1 class="text-2xl font-bold text-indigo-400">Auto Google Form Studio</h1>
+        <p class="text-slate-400 text-xs mt-1">Chi phí chỉ <span class="text-emerald-400 font-bold">250đ / 1 phiếu</span> — Chính xác tỷ lệ %</p>
       </div>
-      <div class="mt-3 md:mt-0 text-xs text-slate-400 bg-slate-900 border border-slate-800 px-3 py-2 rounded-lg">
-        Lưu ý: Tắt <span class="text-amber-400 font-medium">Thu thập email</span> & <span class="text-amber-400 font-medium">Giới hạn 1 lần trả lời</span> trước khi chạy
+
+      <!-- Tabs Đăng nhập / Đăng ký -->
+      <div class="grid grid-cols-2 bg-slate-950 p-1 rounded-lg border border-slate-800 mb-5">
+        <button id="tabLoginBtn" onclick="switchAuthTab('login')"
+          class="py-2 text-xs font-semibold rounded-md bg-indigo-600 text-white transition cursor-pointer">
+          Đăng nhập
+        </button>
+        <button id="tabRegisterBtn" onclick="switchAuthTab('register')"
+          class="py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition cursor-pointer">
+          Tạo tài khoản mới
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Tên đăng nhập (viết liền không dấu)</label>
+          <input id="authUsername" type="text" placeholder="ví dụ: quy2026"
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Mật khẩu</label>
+          <input id="authPassword" type="password" placeholder="••••••"
+            onkeydown="if(event.key==='Enter') submitAuth()"
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+        </div>
+
+        <p id="authError" class="text-rose-400 text-xs hidden"></p>
+
+        <button id="authSubmitBtn" onclick="submitAuth()"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg text-sm transition cursor-pointer">
+          Đăng nhập ngay
+        </button>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-slate-800 text-center">
+        <button onclick="openAdminModal()" class="text-xs text-slate-500 hover:text-indigo-400 underline cursor-pointer">
+          Quản trị viên (Admin nạp tiền)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MÀN HÌNH CHÍNH SAU KHI ĐĂNG NHẬP                                      -->
+  <!-- ===================================================================== -->
+  <div id="mainApp" class="hidden max-w-5xl mx-auto px-4 py-6">
+    <!-- Top Bar: Thông tin tài khoản, Số dư & Nạp tiền -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 shadow-lg">
+      <div>
+        <h1 class="text-xl font-bold text-indigo-400">Auto Google Form Studio</h1>
+        <p class="text-slate-400 text-xs mt-0.5">Đơn giá: <span class="text-emerald-400 font-semibold">250đ / 1 phiếu</span> (Hoàn tiền tự động nếu lỗi)</p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-lg text-xs">
+          <span class="text-slate-400">Tài khoản:</span>
+          <span id="displayUsername" class="font-bold text-white ml-1"></span>
+          <span class="mx-2 text-slate-700">|</span>
+          <span class="text-slate-400">Số dư:</span>
+          <span id="displayBalance" class="font-bold text-emerald-400 ml-1">0đ</span>
+        </div>
+
+        <button onclick="openTopupModal()"
+          class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs transition cursor-pointer">
+          + Nạp tiền
+        </button>
+
+        <button onclick="openAdminModal()"
+          class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-3 py-2 rounded-lg text-xs transition cursor-pointer">
+          Admin
+        </button>
+
+        <button onclick="logout()"
+          class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-3 py-2 rounded-lg text-xs transition cursor-pointer">
+          Thoát
+        </button>
       </div>
     </div>
 
     <!-- Bước 1: Nhập Link Form -->
     <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6 shadow-lg">
-      <label class="block text-sm font-semibold text-slate-300 mb-2">1. Dán đường link Google Form (Link rút gọn forms.gle hoặc link đầy đủ)</label>
+      <label class="block text-sm font-semibold text-slate-300 mb-2">1. Dán đường link Google Form (Tắt Thu thập email & Giới hạn 1 lần trước khi chạy)</label>
       <div class="flex flex-col sm:flex-row gap-3">
-        <input
-          id="formUrlInput"
-          type="text"
-          placeholder="https://docs.google.com/forms/d/e/.../viewform"
-          class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
-        />
-        <button
-          id="scanBtn"
-          onclick="scanForm()"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer"
-        >
+        <input id="formUrlInput" type="text" placeholder="https://forms.gle/... hoặc https://docs.google.com/forms/d/e/.../viewform"
+          class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+        <button id="scanBtn" onclick="scanForm()"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">
           Quét câu hỏi
         </button>
       </div>
@@ -42,7 +112,6 @@
 
     <!-- Khu vực cấu hình sau khi quét thành công -->
     <div id="workspace" class="hidden space-y-6">
-      <!-- Thông tin chung & Cấu hình số lượng -->
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-4 mb-5">
           <div>
@@ -52,53 +121,52 @@
           <span id="questionCountBadge" class="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full self-start"></span>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Tổng số phiếu cần chạy</label>
-            <input id="totalInput" type="number" value="10" min="1" max="2000"
-              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-semibold text-emerald-400" />
+            <label class="block text-xs text-slate-400 mb-1">Số phiếu cần chạy</label>
+            <input id="totalInput" type="number" value="10" min="1" max="2000" oninput="updateCostPreview()"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-semibold text-white" />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Nghỉ tối thiểu giữa 2 phiếu (giây)</label>
-            <input id="delayMinInput" type="number" value="1.0" step="0.1" min="0.2"
+            <label class="block text-xs text-slate-400 mb-1">Thành tiền (250đ/phiếu)</label>
+            <div id="costPreviewBox" class="w-full bg-slate-950 border border-emerald-500/40 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400">
+              2.500đ
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Nghỉ tối thiểu (giây)</label>
+            <input id="delayMinInput" type="number" value="1.2" step="0.1" min="0.2"
               class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Nghỉ tối đa giữa 2 phiếu (giây)</label>
+            <label class="block text-xs text-slate-400 mb-1">Nghỉ tối đa (giây)</label>
             <input id="delayMaxInput" type="number" value="2.5" step="0.1" min="0.5"
               class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>
       </div>
 
-      <!-- Danh sách câu hỏi & Nhập tỷ lệ -->
+      <!-- Danh sách câu hỏi -->
       <div class="space-y-4" id="questionsContainer"></div>
 
       <!-- Thanh điều khiển Chạy & Tiến trình -->
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 sticky bottom-4 shadow-2xl">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div class="flex items-center gap-3">
-            <button
-              id="runBtn"
-              onclick="startCampaign()"
-              class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer"
-            >
-              Bắt đầu chạy Auto
+            <button id="runBtn" onclick="startCampaign()"
+              class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">
+              Thanh toán & Chạy Auto
             </button>
-            <button
-              id="stopBtn"
-              onclick="stopCampaign()"
-              class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition cursor-pointer"
-            >
+            <button id="stopBtn" onclick="stopCampaign()"
+              class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
               Dừng lại
             </button>
           </div>
-          <div id="statsSummary" class="text-sm font-medium text-slate-300">
-            Sẵn sàng chạy
-          </div>
+          <div id="statsSummary" class="text-sm font-medium text-slate-300">Sẵn sàng chạy</div>
         </div>
 
-        <!-- Progress bar -->
+        <p id="runError" class="text-rose-400 text-xs mt-2 hidden"></p>
+
         <div id="progressWrapper" class="hidden mt-4">
           <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
             <div id="progressBar" class="bg-emerald-500 h-2.5 transition-all duration-300" style="width: 0%"></div>
@@ -109,11 +177,273 @@
     </div>
   </div>
 
+  <!-- ===================================================================== -->
+  <!-- MODAL NẠP TIỀN & LỊCH SỬ GIAO DỊCH                                    -->
+  <!-- ===================================================================== -->
+  <div id="topupModal" class="hidden fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <h3 class="text-lg font-bold text-amber-400">Nạp tiền vào tài khoản</h3>
+        <button onclick="closeTopupModal()" class="text-slate-400 hover:text-white text-lg cursor-pointer">&times;</button>
+      </div>
+
+      <!-- Thông tin chuyển khoản (Bạn sửa STK của bạn ở đây) -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs space-y-2 mb-4">
+        <p class="text-slate-300 font-semibold">Chuyển khoản ngân hàng / Ví điện tử theo thông tin sau:</p>
+        <div class="flex justify-between"><span class="text-slate-400">MB Bank:</span><span class="font-bold text-white">MB Bank / Vietcombank (Sửa tên NH của bạn)</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">2455667788:</span><span class="font-bold text-emerald-400">0862953531</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">HUYNH VAN QUY:</span><span class="font-bold text-white">HUYNH VAN QUY</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">gop tien mua xe:</span><span id="transferSyntax" class="font-bold text-amber-400">NAP</span></div>
+        <p class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+          * Đơn giá: <b>250đ / 1 phiếu</b> (Ví dụ: 100 phiếu = 25.000đ). Sau khi chuyển khoản, liên hệ Admin để cộng số dư ngay lập tức.
+        </p>
+      </div>
+
+      <h4 class="text-xs font-semibold text-slate-300 mb-2">Lịch sử giao dịch gần đây</h4>
+      <div id="txHistoryList" class="bg-slate-950 border border-slate-800 rounded-lg p-3 h-40 overflow-y-auto text-xs space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL QUẢN TRỊ ADMIN (CỘNG TIỀN CHO NGƯỜI DÙNG)                       -->
+  <!-- ===================================================================== -->
+  <div id="adminModal" class="hidden fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <h3 class="text-lg font-bold text-indigo-400">Bảng Quản Trị Admin</h3>
+        <button onclick="closeAdminModal()" class="text-slate-400 hover:text-white text-lg cursor-pointer">&times;</button>
+      </div>
+
+      <div class="space-y-3 mb-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Mật khẩu Admin</label>
+          <div class="flex gap-2">
+            <input id="adminPassInput" type="password" placeholder="Nhập mật khẩu Admin (mặc định: quy2026)"
+              class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs" />
+            <button onclick="loadAdminUsers()"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-xs cursor-pointer">
+              Tải danh sách
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Tên tài khoản khách</label>
+            <input id="adminTargetUser" type="text" placeholder="username"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Số tiền cộng (VNĐ)</label>
+            <input id="adminAmountInput" type="number" value="25000" step="1000"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-bold text-emerald-400" />
+          </div>
+        </div>
+        <button onclick="adminTopup()"
+          class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-xs cursor-pointer">
+          + Xác nhận cộng tiền vào tài khoản
+        </button>
+        <p id="adminMsg" class="text-xs hidden"></p>
+      </div>
+
+      <div id="adminUsersList" class="bg-slate-950 border border-slate-800 rounded-lg p-3 h-40 overflow-y-auto text-xs space-y-1.5">
+        <div class="text-slate-500">Nhập mật khẩu Admin và bấm "Tải danh sách" để xem tất cả người dùng.</div>
+      </div>
+    </div>
+  </div>
+
   <script>
+    const PRICE_PER_SURVEY = 250;
+    let authMode = "login";
+    let authToken = localStorage.getItem("autoform_token") || "";
+    let currentUser = null;
     let scannedData = null;
     let currentTaskId = null;
     let pollTimer = null;
 
+    function formatMoney(num) {
+      return Number(num || 0).toLocaleString("vi-VN") + "đ";
+    }
+
+    function switchAuthTab(mode) {
+      authMode = mode;
+      document.getElementById("authError").classList.add("hidden");
+      if (mode === "login") {
+        document.getElementById("tabLoginBtn").className = "py-2 text-xs font-semibold rounded-md bg-indigo-600 text-white transition cursor-pointer";
+        document.getElementById("tabRegisterBtn").className = "py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition cursor-pointer";
+        document.getElementById("authSubmitBtn").textContent = "Đăng nhập ngay";
+      } else {
+        document.getElementById("tabRegisterBtn").className = "py-2 text-xs font-semibold rounded-md bg-indigo-600 text-white transition cursor-pointer";
+        document.getElementById("tabLoginBtn").className = "py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition cursor-pointer";
+        document.getElementById("authSubmitBtn").textContent = "Tạo tài khoản mới";
+      }
+    }
+
+    async function submitAuth() {
+      const username = document.getElementById("authUsername").value.trim();
+      const password = document.getElementById("authPassword").value;
+      const errEl = document.getElementById("authError");
+      errEl.classList.add("hidden");
+
+      const endpoint = authMode === "login" ? "/api/login" : "/api/register";
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Lỗi xác thực");
+
+        authToken = data.token;
+        localStorage.setItem("autoform_token", authToken);
+        await refreshProfile();
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.classList.remove("hidden");
+      }
+    }
+
+    async function refreshProfile() {
+      if (!authToken) {
+        showAuthScreen();
+        return;
+      }
+      try {
+        const res = await fetch("/api/me", {
+          headers: { "Authorization": "Bearer " + authToken }
+        });
+        if (!res.ok) throw new Error("Hết phiên đăng nhập");
+        currentUser = await res.json();
+
+        document.getElementById("authScreen").classList.add("hidden");
+        document.getElementById("mainApp").classList.remove("hidden");
+        document.getElementById("displayUsername").textContent = currentUser.username;
+        document.getElementById("displayBalance").textContent = formatMoney(currentUser.balance);
+        document.getElementById("transferSyntax").textContent = "NAP " + currentUser.username.toUpperCase();
+        renderTxHistory(currentUser.transactions || []);
+      } catch (e) {
+        logout();
+      }
+    }
+
+    function showAuthScreen() {
+      document.getElementById("authScreen").classList.remove("hidden");
+      document.getElementById("mainApp").classList.add("hidden");
+    }
+
+    function logout() {
+      authToken = "";
+      currentUser = null;
+      localStorage.removeItem("autoform_token");
+      showAuthScreen();
+    }
+
+    function updateCostPreview() {
+      const total = Math.max(0, Number(document.getElementById("totalInput").value) || 0);
+      document.getElementById("costPreviewBox").textContent = formatMoney(total * PRICE_PER_SURVEY);
+    }
+
+    function openTopupModal() {
+      refreshProfile();
+      document.getElementById("topupModal").classList.remove("hidden");
+    }
+    function closeTopupModal() {
+      document.getElementById("topupModal").classList.add("hidden");
+    }
+
+    function renderTxHistory(list) {
+      const box = document.getElementById("txHistoryList");
+      if (!list.length) {
+        box.innerHTML = `<div class="text-slate-500">Chưa có giao dịch nào.</div>`;
+        return;
+      }
+      box.innerHTML = list.map(tx => {
+        const isPlus = tx.amount > 0;
+        return `
+          <div class="flex items-center justify-between border-b border-slate-800/70 pb-1.5">
+            <div>
+              <div class="text-slate-200">${escapeHtml(tx.note)}</div>
+              <div class="text-[10px] text-slate-500">${tx.created_at}</div>
+            </div>
+            <div class="font-bold ${isPlus ? 'text-emerald-400' : 'text-rose-400'}">
+              ${isPlus ? '+' : ''}${formatMoney(tx.amount)}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // ADMIN FUNCTIONS
+    function openAdminModal() {
+      document.getElementById("adminModal").classList.remove("hidden");
+    }
+    function closeAdminModal() {
+      document.getElementById("adminModal").classList.add("hidden");
+    }
+
+    async function loadAdminUsers() {
+      const admin_password = document.getElementById("adminPassInput").value;
+      const msgEl = document.getElementById("adminMsg");
+      msgEl.classList.add("hidden");
+      try {
+        const res = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ admin_password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Lỗi Admin");
+
+        const listEl = document.getElementById("adminUsersList");
+        if (!data.users.length) {
+          listEl.innerHTML = `<div class="text-slate-500">Chưa có tài khoản nào đăng ký.</div>`;
+          return;
+        }
+        listEl.innerHTML = data.users.map(u => `
+          <div onclick="document.getElementById('adminTargetUser').value='${u.username}'"
+            class="flex items-center justify-between bg-slate-900 hover:bg-slate-800 px-3 py-2 rounded cursor-pointer">
+            <span class="font-semibold text-white">${u.username}</span>
+            <span class="font-bold text-emerald-400">${formatMoney(u.balance)}</span>
+          </div>
+        `).join("");
+      } catch (e) {
+        msgEl.textContent = e.message;
+        msgEl.className = "text-xs text-rose-400";
+        msgEl.classList.remove("hidden");
+      }
+    }
+
+    async function adminTopup() {
+      const admin_password = document.getElementById("adminPassInput").value;
+      const target_username = document.getElementById("adminTargetUser").value.trim();
+      const amount = Number(document.getElementById("adminAmountInput").value);
+      const msgEl = document.getElementById("adminMsg");
+
+      try {
+        const res = await fetch("/api/admin/topup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ admin_password, target_username, amount })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Lỗi cộng tiền");
+
+        msgEl.textContent = `Đã cộng ${formatMoney(amount)} cho ${data.username}. Số dư mới: ${formatMoney(data.new_balance)}`;
+        msgEl.className = "text-xs text-emerald-400";
+        msgEl.classList.remove("hidden");
+        loadAdminUsers();
+        if (currentUser && currentUser.username === data.username) {
+          refreshProfile();
+        }
+      } catch (e) {
+        msgEl.textContent = e.message;
+        msgEl.className = "text-xs text-rose-400";
+        msgEl.classList.remove("hidden");
+      }
+    }
+
+    // SCAN & RUN FORM
     async function scanForm() {
       const url = document.getElementById("formUrlInput").value.trim();
       const errEl = document.getElementById("scanError");
@@ -132,7 +462,10 @@
       try {
         const res = await fetch("/api/scan", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + authToken
+          },
           body: JSON.stringify({ url })
         });
         const data = await res.json();
@@ -153,6 +486,7 @@
       document.getElementById("workspace").classList.remove("hidden");
       document.getElementById("formTitleDisplay").textContent = scannedData.form_title;
       document.getElementById("questionCountBadge").textContent = `${scannedData.questions.length} câu hỏi`;
+      updateCostPreview();
 
       const container = document.getElementById("questionsContainer");
       container.innerHTML = "";
@@ -240,7 +574,6 @@
             >${q.samples.join("\n")}</textarea>
           `;
         }
-
         container.appendChild(card);
       });
     }
@@ -266,40 +599,57 @@
     }
 
     async function startCampaign() {
+      const errEl = document.getElementById("runError");
+      errEl.classList.add("hidden");
+
       const payload = {
         view_url: scannedData.view_url,
         submit_url: scannedData.submit_url,
         page_history: scannedData.page_history,
         total: Number(document.getElementById("totalInput").value) || 10,
-        delay_min: Number(document.getElementById("delayMinInput").value) || 1.0,
+        delay_min: Number(document.getElementById("delayMinInput").value) || 1.2,
         delay_max: Number(document.getElementById("delayMaxInput").value) || 2.5,
         questions: scannedData.questions
       };
 
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + authToken
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.detail || "Không thể khởi chạy.";
+        errEl.classList.remove("hidden");
+        return;
+      }
+
+      document.getElementById("displayBalance").textContent = formatMoney(data.new_balance);
       document.getElementById("runBtn").disabled = true;
       document.getElementById("stopBtn").classList.remove("hidden");
       document.getElementById("progressWrapper").classList.remove("hidden");
 
-      const res = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
       currentTaskId = data.task_id;
-
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(pollStatus, 1200);
     }
 
     async function stopCampaign() {
       if (!currentTaskId) return;
-      await fetch(`/api/stop/${currentTaskId}`, { method: "POST" });
+      await fetch(`/api/stop/${currentTaskId}`, {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + authToken }
+      });
     }
 
     async function pollStatus() {
       if (!currentTaskId) return;
-      const res = await fetch(`/api/status/${currentTaskId}`);
+      const res = await fetch(`/api/status/${currentTaskId}`, {
+        headers: { "Authorization": "Bearer " + authToken }
+      });
       const st = await res.json();
 
       const pct = Math.round((st.sent / st.total) * 100);
@@ -315,6 +665,7 @@
         clearInterval(pollTimer);
         document.getElementById("runBtn").disabled = false;
         document.getElementById("stopBtn").classList.add("hidden");
+        refreshProfile(); // Cập nhật lại số dư nếu có hoàn tiền
       }
     }
 
@@ -325,6 +676,8 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     }
+
+    refreshProfile();
   </script>
 </body>
 </html>

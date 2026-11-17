@@ -1,22 +1,35 @@
+import hashlib
 import json
 import os
 import random
 import re
+import secrets
+import sqlite3
 import threading
 import time
 import uuid
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import requests
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="Auto Google Form Web Tool")
+app = FastAPI(title="Auto Google Form SaaS")
 
-# Kho lưu trữ trạng thái các phiên chạy ngầm trong bộ nhớ
+# ==============================================================================
+# CẤU HÌNH GIÁ DỊCH VỤ & MẬT KHẨU ADMIN
+# ==============================================================================
+PRICE_PER_SURVEY = 250  # 250 VNĐ / 1 phiếu khảo sát thành công
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "quy2026")  # Mật khẩu vào trang cộng tiền
+DB_PATH = "survey_saas.db"
+
+# Lưu phiên đăng nhập (token -> username) và tiến trình chạy ngầm
+SESSIONS: Dict[str, str] = {}
 TASKS: Dict[str, Dict[str, Any]] = {}
+DB_LOCK = threading.Lock()
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
@@ -33,6 +46,94 @@ DEFAULT_TEXT_SAMPLES = [
 ]
 
 
+# ==============================================================================
+# KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE (TÀI KHOẢN, SỐ DƯ, LỊCH SỬ GIAO DỊCH)
+# ==============================================================================
+def get_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    with DB_LOCK:
+        conn = get_db()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                balance INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                tx_type TEXT NOT NULL,
+                note TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.commit()
+        conn.close()
+
+
+init_db()
+
+
+def hash_password(password: str, salt: str) -> str:
+    return hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+
+
+def adjust_balance(username: str, delta: int, tx_type: str, note: str) -> int:
+    """Cộng hoặc trừ tiền an toàn và ghi lịch sử giao dịch."""
+    with DB_LOCK:
+        conn = get_db()
+        row = conn.execute("SELECT balance FROM users WHERE username = ?", (username,)).fetchone()
+        if not row:
+            conn.close()
+            raise ValueError("Tài khoản không tồn tại.")
+        new_balance = row["balance"] + delta
+        if new_balance < 0:
+            conn.close()
+            raise ValueError("Số dư không đủ để thực hiện giao dịch.")
+        now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        conn.execute("UPDATE users SET balance = ? WHERE username = ?", (new_balance, username))
+        conn.execute(
+            "INSERT INTO transactions (username, amount, tx_type, note, created_at) VALUES (?, ?, ?, ?, ?)",
+            (username, delta, tx_type, note, now_str),
+        )
+        conn.commit()
+        conn.close()
+        return new_balance
+
+
+def get_current_user(authorization: Optional[str] = Header(default=None)) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Vui lòng đăng nhập để sử dụng.")
+    token = authorization.split(" ", 1)[1].strip()
+    username = SESSIONS.get(token)
+    if not username:
+        raise HTTPException(status_code=401, detail="Phiên đăng nhập hết hạn, vui lòng đăng nhập lại.")
+    return username
+
+
+# ==============================================================================
+# MODELS DỮ LIỆU API
+# ==============================================================================
+class AuthRequest(BaseModel):
+    username: str
+    password: str
+
+
 class ScanRequest(BaseModel):
     url: str
 
@@ -47,8 +148,130 @@ class RunRequest(BaseModel):
     questions: List[Dict[str, Any]]
 
 
+class AdminTopupRequest(BaseModel):
+    admin_password: str
+    target_username: str
+    amount: int
+    note: str = "Admin nạp tiền thủ công"
+
+
+class AdminListRequest(BaseModel):
+    admin_password: str
+
+
+# ==============================================================================
+# API TÀI KHOẢN & SỐ DƯ
+# ==============================================================================
+@app.post("/api/register")
+def api_register(req: AuthRequest):
+    uname = req.username.strip().lower()
+    if not re.match(r"^[a-z0-9_]{3,24}$", uname):
+        raise HTTPException(
+            status_code=400,
+            detail="Tên đăng nhập dài 3-24 ký tự, chỉ gồm chữ thường, số hoặc dấu gạch dưới (_).",
+        )
+    if len(req.password) < 4:
+        raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 4 ký tự.")
+
+    salt = secrets.token_hex(8)
+    pw_hash = hash_password(req.password, salt)
+    now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    with DB_LOCK:
+        conn = get_db()
+        try:
+            conn.execute(
+                "INSERT INTO users (username, password_hash, salt, balance, created_at) VALUES (?, ?, ?, 0, ?)",
+                (uname, pw_hash, salt, now_str),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Tên đăng nhập này đã có người sử dụng.")
+        conn.close()
+
+    token = secrets.token_hex(24)
+    SESSIONS[token] = uname
+    return {"token": token, "username": uname, "balance": 0, "price_per_survey": PRICE_PER_SURVEY}
+
+
+@app.post("/api/login")
+def api_login(req: AuthRequest):
+    uname = req.username.strip().lower()
+    with DB_LOCK:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (uname,)).fetchone()
+        conn.close()
+
+    if not row or hash_password(req.password, row["salt"]) != row["password_hash"]:
+        raise HTTPException(status_code=401, detail="Sai tên đăng nhập hoặc mật khẩu.")
+
+    token = secrets.token_hex(24)
+    SESSIONS[token] = uname
+    return {
+        "token": token,
+        "username": uname,
+        "balance": row["balance"],
+        "price_per_survey": PRICE_PER_SURVEY,
+    }
+
+
+@app.get("/api/me")
+def api_me(username: str = Depends(get_current_user)):
+    with DB_LOCK:
+        conn = get_db()
+        user_row = conn.execute("SELECT username, balance FROM users WHERE username = ?", (username,)).fetchone()
+        tx_rows = conn.execute(
+            "SELECT amount, tx_type, note, created_at FROM transactions WHERE username = ? ORDER BY id DESC LIMIT 20",
+            (username,),
+        ).fetchall()
+        conn.close()
+
+    if not user_row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng.")
+
+    return {
+        "username": user_row["username"],
+        "balance": user_row["balance"],
+        "price_per_survey": PRICE_PER_SURVEY,
+        "transactions": [dict(r) for r in tx_rows],
+    }
+
+
+# ==============================================================================
+# API QUẢN TRỊ ADMIN (XEM USER & CỘNG TIỀN)
+# ==============================================================================
+@app.post("/api/admin/users")
+def api_admin_users(req: AdminListRequest):
+    if req.admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Sai mật khẩu quản trị Admin!")
+    with DB_LOCK:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT id, username, balance, created_at FROM users ORDER BY id DESC"
+        ).fetchall()
+        conn.close()
+    return {"users": [dict(r) for r in rows]}
+
+
+@app.post("/api/admin/topup")
+def api_admin_topup(req: AdminTopupRequest):
+    if req.admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Sai mật khẩu quản trị Admin!")
+    uname = req.target_username.strip().lower()
+    if req.amount == 0:
+        raise HTTPException(status_code=400, detail="Số tiền phải khác 0.")
+    try:
+        new_bal = adjust_balance(uname, req.amount, "TOPUP", req.note)
+        return {"username": uname, "new_balance": new_bal}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# XỬ LÝ QUÉT GOOGLE FORM & CHẠY KHẢO SÁT
+# ==============================================================================
 def resolve_urls(input_url: str):
-    """Giải mã link rút gọn forms.gle hoặc link /edit sang link gốc viewform và formResponse."""
     clean_input = input_url.strip()
     if not clean_input.startswith("http"):
         clean_input = "https://" + clean_input
@@ -71,10 +294,9 @@ def resolve_urls(input_url: str):
 
 
 def parse_form_html(html_text: str):
-    """Bóc tách toàn bộ câu hỏi, loại câu hỏi và danh sách đáp án từ FB_PUBLIC_LOAD_DATA_."""
     match = re.search(r"FB_PUBLIC_LOAD_DATA_\s*=\s*(.*?);\s*</script>", html_text, re.S)
     if not match:
-        raise ValueError("Không đọc được dữ liệu biểu mẫu. Hãy kiểm tra lại quyền truy cập công khai của Form.")
+        raise ValueError("Không đọc được dữ liệu biểu mẫu. Hãy kiểm tra quyền truy cập công khai của Form.")
 
     raw_data = json.loads(match.group(1))
     form_title = raw_data[1][8] if (len(raw_data[1]) > 8 and raw_data[1][8]) else "Khảo sát Google Form"
@@ -86,11 +308,9 @@ def parse_form_html(html_text: str):
     for item in items:
         if not item or len(item) < 4:
             continue
-
         q_title = str(item[1]).strip()
         q_type = item[3]
 
-        # Ngắt trang (Section break)
         if q_type == 8:
             page_count += 1
             continue
@@ -98,17 +318,16 @@ def parse_form_html(html_text: str):
         if len(item) < 5 or not item[4]:
             continue
 
-        # Nhóm câu hỏi Lưới (Grid) hoặc có nhiều dòng con
         if q_type == 7 or len(item[4]) > 1:
             rows = []
             for sub in item[4]:
                 entry_id = f"entry.{sub[0]}"
                 row_label = sub[3][0] if (len(sub) > 3 and sub[3]) else "Dòng tiêu chí"
-                options = []
-                if len(sub) > 1 and sub[1]:
-                    for opt in sub[1]:
-                        if opt and opt[0] is not None and str(opt[0]).strip() != "":
-                            options.append(str(opt[0]))
+                options = [
+                    str(opt[0])
+                    for opt in (sub[1] or [])
+                    if opt and opt[0] is not None and str(opt[0]).strip() != ""
+                ]
                 n = len(options)
                 default_w = [round(100 // n) for _ in range(n)] if n else []
                 if default_w:
@@ -119,14 +338,8 @@ def parse_form_html(html_text: str):
                     "options": options,
                     "weights": default_w,
                 })
+            questions.append({"title": q_title, "kind": "grid", "rows": rows})
 
-            questions.append({
-                "title": q_title,
-                "kind": "grid",
-                "rows": rows,
-            })
-
-        # Câu hỏi Checkbox (chọn nhiều đáp án)
         elif q_type == 4:
             sub = item[4][0]
             entry_id = f"entry.{sub[0]}"
@@ -143,7 +356,6 @@ def parse_form_html(html_text: str):
                 "weights": [50 for _ in options],
             })
 
-        # Câu hỏi Tự luận ngắn / đoạn văn
         elif q_type in (0, 1):
             sub = item[4][0]
             entry_id = f"entry.{sub[0]}"
@@ -154,7 +366,6 @@ def parse_form_html(html_text: str):
                 "samples": DEFAULT_TEXT_SAMPLES,
             })
 
-        # Câu hỏi Chọn 1 đáp án (Multiple choice, Dropdown, Linear scale)
         else:
             sub = item[4][0]
             entry_id = f"entry.{sub[0]}"
@@ -225,8 +436,7 @@ def build_checkbox_pool(options: List[str], percentages: List[float], total_n: i
     return matrix
 
 
-def execute_campaign_worker(task_id: str, req: RunRequest):
-    """Tiến trình chạy ngầm gửi từng phiếu khảo sát lên Google Forms."""
+def execute_campaign_worker(task_id: str, username: str, req: RunRequest):
     task = TASKS[task_id]
     total = req.total
     payloads = [[("pageHistory", req.page_history)] for _ in range(total)]
@@ -257,8 +467,8 @@ def execute_campaign_worker(task_id: str, req: RunRequest):
     for i, data_items in enumerate(payloads, start=1):
         if task["stop_requested"]:
             task["status"] = "stopped"
-            task["logs"].append(f"[DỪNG] Người dùng đã dừng chiến dịch tại phiếu {i - 1}/{total}.")
-            return
+            task["logs"].append(f"[DỪNG] Đã dừng tại phiếu {i - 1}/{total}.")
+            break
 
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
@@ -272,7 +482,7 @@ def execute_campaign_worker(task_id: str, req: RunRequest):
                 task["logs"].append(f"[{i}/{total}] Thành công (HTTP 200)")
             else:
                 task["failed"] += 1
-                task["logs"].append(f"[{i}/{total}] Thất bại (HTTP {res.status_code}) - Kiểm tra cài đặt Form")
+                task["logs"].append(f"[{i}/{total}] Thất bại (HTTP {res.status_code})")
         except Exception as exc:
             task["failed"] += 1
             task["logs"].append(f"[{i}/{total}] Lỗi mạng: {exc}")
@@ -285,8 +495,21 @@ def execute_campaign_worker(task_id: str, req: RunRequest):
             sleep_sec = random.uniform(min(req.delay_min, req.delay_max), max(req.delay_min, req.delay_max))
             time.sleep(max(0.2, sleep_sec))
 
-    task["status"] = "completed"
-    task["logs"].append(f"[HOÀN TẤT] Thành công {task['success']}/{total} phiếu.")
+    # Tự động hoàn tiền cho các phiếu chưa chạy hoặc bị lỗi
+    unfulfilled = total - task["success"]
+    if unfulfilled > 0:
+        refund_amount = unfulfilled * PRICE_PER_SURVEY
+        adjust_balance(
+            username,
+            refund_amount,
+            "REFUND",
+            f"Hoàn tiền {unfulfilled} phiếu chưa hoàn thành (Mã phiên {task_id})",
+        )
+        task["logs"].append(f"[HOÀN TIỀN] Đã hoàn {refund_amount:,}đ cho {unfulfilled} phiếu chưa thành công.")
+
+    if task["status"] == "running":
+        task["status"] = "completed"
+        task["logs"].append(f"[HOÀN TẤT] Thành công {task['success']}/{total} phiếu.")
 
 
 @app.get("/")
@@ -295,7 +518,7 @@ def serve_homepage():
 
 
 @app.post("/api/scan")
-def api_scan_form(req: ScanRequest):
+def api_scan_form(req: ScanRequest, username: str = Depends(get_current_user)):
     try:
         html_text, real_view_url, submit_url = resolve_urls(req.url)
         form_title, questions, page_history = parse_form_html(html_text)
@@ -311,38 +534,54 @@ def api_scan_form(req: ScanRequest):
 
 
 @app.post("/api/run")
-def api_run_campaign(req: RunRequest):
+def api_run_campaign(req: RunRequest, username: str = Depends(get_current_user)):
     if req.total < 1 or req.total > 2000:
         raise HTTPException(status_code=400, detail="Số lượng phiếu phải nằm trong khoảng 1 đến 2000.")
 
+    total_cost = req.total * PRICE_PER_SURVEY
     task_id = str(uuid.uuid4())[:8]
+
+    try:
+        new_balance = adjust_balance(
+            username,
+            -total_cost,
+            "CHARGE",
+            f"Chạy {req.total} phiếu khảo sát (Mã phiên {task_id})",
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Số dư không đủ! Cần {total_cost:,}đ cho {req.total} phiếu (250đ/phiếu). Vui lòng nạp thêm tiền.",
+        )
+
     TASKS[task_id] = {
         "task_id": task_id,
+        "owner": username,
         "status": "running",
         "total": req.total,
         "sent": 0,
         "success": 0,
         "failed": 0,
         "stop_requested": False,
-        "logs": [f"[*] Bắt đầu chạy {req.total} phiếu khảo sát..."],
+        "logs": [f"[*] Đã trừ {total_cost:,}đ. Bắt đầu chạy {req.total} phiếu khảo sát..."],
     }
 
-    worker = threading.Thread(target=execute_campaign_worker, args=(task_id, req), daemon=True)
+    worker = threading.Thread(target=execute_campaign_worker, args=(task_id, username, req), daemon=True)
     worker.start()
-    return {"task_id": task_id}
+    return {"task_id": task_id, "new_balance": new_balance}
 
 
 @app.post("/api/stop/{task_id}")
-def api_stop_campaign(task_id: str):
-    if task_id not in TASKS:
+def api_stop_campaign(task_id: str, username: str = Depends(get_current_user)):
+    if task_id not in TASKS or TASKS[task_id]["owner"] != username:
         raise HTTPException(status_code=404, detail="Không tìm thấy phiên chạy.")
     TASKS[task_id]["stop_requested"] = True
     return {"ok": True}
 
 
 @app.get("/api/status/{task_id}")
-def api_get_status(task_id: str):
-    if task_id not in TASKS:
+def api_get_status(task_id: str, username: str = Depends(get_current_user)):
+    if task_id not in TASKS or TASKS[task_id]["owner"] != username:
         raise HTTPException(status_code=404, detail="Không tìm thấy phiên chạy.")
     return TASKS[task_id]
 
