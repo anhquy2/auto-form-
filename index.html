@@ -100,133 +100,273 @@
       </div>
     </div>
 
-    <!-- Bước 1: Quét Form -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6 shadow-lg">
-      <label class="block text-sm font-semibold text-slate-300 mb-2">1. Dán đường link Google Form (Tắt Thu thập email & Giới hạn 1 lần trước khi chạy)</label>
-      <div class="flex flex-col sm:flex-row gap-3">
-        <input id="formUrlInput" type="text" placeholder="https://forms.gle/... hoặc https://docs.google.com/forms/d/e/.../viewform"
-          class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
-        <button id="scanBtn" onclick="scanForm()"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">
-          Quét câu hỏi
-        </button>
-      </div>
-      <p id="scanError" class="text-rose-400 text-xs mt-2 hidden"></p>
-    </div>
-
-    <!-- Khu vực cấu hình chiến dịch -->
-    <div id="workspace" class="hidden space-y-6 mb-8">
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-4 mb-5">
-          <div>
-            <span class="text-xs uppercase tracking-wider text-indigo-400 font-semibold">Biểu mẫu đã nhận diện</span>
-            <h2 id="formTitleDisplay" class="text-lg font-bold text-white mt-0.5"></h2>
-          </div>
-          <span id="questionCountBadge" class="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full self-start"></span>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Số phiếu cần chạy</label>
-            <input id="totalInput" type="number" value="10" min="1" max="2000" oninput="updateCostPreview()"
-              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-semibold text-white" />
-          </div>
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Chi phí dự kiến</label>
-            <div id="costPreviewBox" class="w-full bg-slate-950 border border-emerald-500/40 rounded-lg px-3 py-2 text-xs font-bold text-emerald-400 flex items-center h-[38px]">
-              Miễn phí 10 lượt
-            </div>
-          </div>
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Nghỉ tối thiểu (giây)</label>
-            <input id="delayMinInput" type="number" value="1.2" step="0.1" min="0.2"
-              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Nghỉ tối đa (giây)</label>
-            <input id="delayMaxInput" type="number" value="2.5" step="0.1" min="0.5"
-              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
-          </div>
-        </div>
-      </div>
-
-      <div class="space-y-4" id="questionsContainer"></div>
-
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-2xl">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <button id="runBtn" onclick="startCampaign()"
-              class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">
-              Xác nhận & Chạy Auto
-            </button>
-            <button id="stopBtn" onclick="stopCampaign()"
-              class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
-              Dừng lại
-            </button>
-          </div>
-          <div id="statsSummary" class="text-sm font-medium text-slate-300">Sẵn sàng chạy</div>
-        </div>
-
-        <p id="runError" class="text-rose-400 text-xs mt-2 hidden"></p>
-
-        <div id="progressWrapper" class="hidden mt-4">
-          <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div id="progressBar" class="bg-emerald-500 h-2.5 transition-all duration-300" style="width: 0%"></div>
-          </div>
-          <div id="logBox" class="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3 h-36 overflow-y-auto font-mono text-xs text-slate-300 space-y-1"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===================================================================== -->
-    <!-- BẢNG LỊCH SỬ ĐƠN HÀNG ("Đơn hàng của bạn")                            -->
-    <!-- ===================================================================== -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <h2 class="text-lg font-bold text-white">Đơn hàng của bạn</h2>
-        <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 p-1 rounded-lg text-xs">
-          <span class="px-3 py-1 rounded-md bg-slate-800 text-white font-semibold">Điền form</span>
-          <button onclick="refreshProfile()" class="px-3 py-1 text-slate-400 hover:text-white transition cursor-pointer">
-            ↻ Làm mới
+    <!-- =================================================================== -->
+    <!-- CHẾ ĐỘ XEM 1: BẢNG ĐIỀU KHIỂN TẠO ĐƠN & DANH SÁCH ĐƠN HÀNG          -->
+    <!-- =================================================================== -->
+    <div id="dashboardView">
+      <!-- Bước 1: Quét Form -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6 shadow-lg">
+        <label class="block text-sm font-semibold text-slate-300 mb-2">1. Dán đường link Google Form (Tắt Thu thập email & Giới hạn 1 lần trước khi chạy)</label>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input id="formUrlInput" type="text" placeholder="https://forms.gle/... hoặc https://docs.google.com/forms/d/e/.../viewform"
+            class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+          <button id="scanBtn" onclick="scanForm()"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">
+            Quét câu hỏi
           </button>
         </div>
+        <p id="scanError" class="text-rose-400 text-xs mt-2 hidden"></p>
       </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="border-b border-slate-800 text-xs text-slate-400">
-              <th class="py-3 px-3 font-medium w-12">#</th>
-              <th class="py-3 px-3 font-medium">Tên form</th>
-              <th class="py-3 px-3 font-medium">Số lượng</th>
-              <th class="py-3 px-3 font-medium">Trạng thái</th>
-              <th class="py-3 px-3 font-medium">Ngày tạo</th>
-              <th class="py-3 px-3 font-medium text-right">Hành động</th>
-            </tr>
-          </thead>
-          <tbody id="ordersTableBody" class="divide-y divide-slate-800/70 text-sm">
-            <tr>
-              <td colspan="6" class="py-8 text-center text-xs text-slate-500">Chưa có đơn hàng nào.</td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Khu vực cấu hình chiến dịch -->
+      <div id="workspace" class="hidden space-y-6 mb-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-4 mb-5">
+            <div>
+              <span class="text-xs uppercase tracking-wider text-indigo-400 font-semibold">Biểu mẫu đã nhận diện</span>
+              <h2 id="formTitleDisplay" class="text-lg font-bold text-white mt-0.5"></h2>
+            </div>
+            <span id="questionCountBadge" class="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full self-start"></span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Số phiếu cần chạy</label>
+              <input id="totalInput" type="number" value="10" min="1" max="2000" oninput="updateCostPreview()"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-semibold text-white" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Chi phí dự kiến</label>
+              <div id="costPreviewBox" class="w-full bg-slate-950 border border-emerald-500/40 rounded-lg px-3 py-2 text-xs font-bold text-emerald-400 flex items-center h-[38px]">
+                Miễn phí 10 lượt
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Nghỉ tối thiểu (giây)</label>
+              <input id="delayMinInput" type="number" value="1.2" step="0.1" min="0.2"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Nghỉ tối đa (giây)</label>
+              <input id="delayMaxInput" type="number" value="2.5" step="0.1" min="0.5"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+        </div>
+
+        <!-- HƯỚNG DẪN CHI TIẾT CẤU HÌNH TỈ LỆ % -->
+        <div class="bg-slate-900/90 border border-indigo-500/30 rounded-xl p-5">
+          <div class="flex items-center justify-between cursor-pointer" onclick="toggleGuideBox()">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">?</span>
+              <h3 class="text-sm font-bold text-indigo-300">Hướng dẫn nhập tỉ lệ % chuẩn xác cho từng dạng câu hỏi</h3>
+            </div>
+            <span id="guideToggleText" class="text-xs text-slate-400 hover:text-white">Thu gọn ▲</span>
+          </div>
+          <div id="guideContent" class="mt-3 pt-3 border-t border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-300">
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="font-bold text-indigo-400 mb-1">1. Câu hỏi chọn 1 đáp án (Trắc nghiệm)</div>
+              <p class="text-slate-400 leading-relaxed">Tổng tỉ lệ các đáp án trong 1 câu phải bằng <b class="text-emerald-400">100%</b>. Khi đạt 100%, hệ thống hiện nhãn <span class="text-emerald-400 font-semibold">Tổng: 100% ✓ OK</span> và chia đúng số lượng phiếu theo tỉ lệ bạn đặt.</p>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="font-bold text-amber-400 mb-1">2. Câu hỏi chọn nhiều (Hộp kiểm / Checkbox)</div>
+              <p class="text-slate-400 leading-relaxed">Mỗi ô nhập từ <b class="text-white">0% đến 100%</b> độc lập (ví dụ 60% nghĩa là 60% tổng số người sẽ tích chọn ô này). Không bắt buộc tổng bằng 100%.</p>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="font-bold text-purple-400 mb-1">3. Lưới trắc nghiệm / Thang đo Likert</div>
+              <p class="text-slate-400 leading-relaxed">Mỗi hàng tiêu chí được tính như một câu chọn 1 đáp án riêng biệt. Hãy chỉnh các cột mức độ (1 → 5) sao cho mỗi hàng đạt <b class="text-emerald-400">Tổng: 100% ✓ OK</b>.</p>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="font-bold text-cyan-400 mb-1">4. Câu hỏi tự luận (Văn bản ngắn / Đoạn)</div>
+              <p class="text-slate-400 leading-relaxed">Nhập danh sách các câu trả lời mẫu, <b class="text-white">mỗi dòng là 1 câu</b>. Hệ thống sẽ lấy ngẫu nhiên từng dòng để điền vào các phiếu.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danh sách câu hỏi cấu hình tỉ lệ -->
+        <div class="space-y-4" id="questionsContainer"></div>
+
+        <!-- Thanh chạy -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-2xl">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <button id="runBtn" onclick="startCampaign()"
+                class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                Xác nhận & Chạy Auto
+              </button>
+              <button id="stopBtn" onclick="stopCampaign()"
+                class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                Dừng lại
+              </button>
+            </div>
+            <div id="statsSummary" class="text-sm font-medium text-slate-300">Sẵn sàng chạy</div>
+          </div>
+
+          <p id="runError" class="text-rose-400 text-xs mt-2 hidden"></p>
+
+          <div id="progressWrapper" class="hidden mt-4">
+            <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+              <div id="progressBar" class="bg-emerald-500 h-2.5 transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <div id="logBox" class="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3 h-36 overflow-y-auto font-mono text-xs text-slate-300 space-y-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bảng "Đơn hàng của bạn" -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <h2 class="text-lg font-bold text-white">Đơn hàng của bạn</h2>
+          <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 p-1 rounded-lg text-xs">
+            <span class="px-3 py-1 rounded-md bg-slate-800 text-white font-semibold">Điền form</span>
+            <button onclick="refreshProfile()" class="px-3 py-1 text-slate-400 hover:text-white transition cursor-pointer">
+              ↻ Làm mới
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-xs text-slate-400">
+                <th class="py-3 px-3 font-medium w-12">#</th>
+                <th class="py-3 px-3 font-medium">Tên form</th>
+                <th class="py-3 px-3 font-medium">Số lượng</th>
+                <th class="py-3 px-3 font-medium">Trạng thái</th>
+                <th class="py-3 px-3 font-medium">Ngày tạo</th>
+                <th class="py-3 px-3 font-medium text-right">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTableBody" class="divide-y divide-slate-800/70 text-sm">
+              <tr>
+                <td colspan="6" class="py-8 text-center text-xs text-slate-500">Chưa có đơn hàng nào.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- ===================================================================== -->
-  <!-- MODAL XEM CHI TIẾT LOG ĐƠN HÀNG                                       -->
-  <!-- ===================================================================== -->
-  <div id="orderLogModal" class="hidden fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-        <div>
-          <h3 id="modalOrderTitle" class="text-base font-bold text-white">Chi tiết tiến trình đơn hàng</h3>
-          <p id="modalOrderMeta" class="text-xs text-slate-400 mt-0.5"></p>
-        </div>
-        <button onclick="closeOrderLogModal()" class="text-slate-400 hover:text-white text-xl cursor-pointer">&times;</button>
+    <!-- =================================================================== -->
+    <!-- CHẾ ĐỘ XEM 2: TRANG CHI TIẾT ORDER (THEO ĐÚNG MẪU THIẾT KẾ)         -->
+    <!-- =================================================================== -->
+    <div id="orderDetailView" class="hidden space-y-6">
+      <div>
+        <button onclick="closeOrderDetailView()"
+          class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition mb-3 cursor-pointer">
+          <span>←</span> <span>Quay lại</span>
+        </button>
+        <h2 class="text-2xl font-bold text-white">Chi tiết <span class="text-indigo-400">Order</span></h2>
+        <p class="text-xs text-slate-400 mt-0.5">Xem và quản lý thông tin order của bạn</p>
       </div>
-      <div id="modalOrderLogs" class="bg-slate-950 border border-slate-800 rounded-lg p-3.5 h-64 overflow-y-auto font-mono text-xs text-slate-300 space-y-1"></div>
+
+      <!-- 2 Khung thông tin song song -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Khung trái: Thông tin Order -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2 text-sm font-bold text-white">
+                <span class="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[11px]">!</span>
+                <span>Thông tin Order</span>
+              </div>
+              <button id="detailStopBtn" onclick=""
+                class="hidden text-xs bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded cursor-pointer">
+                Dừng đơn này
+              </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Người tạo:</span>
+                <span id="detCreator" class="font-semibold text-white"></span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Hình thức:</span>
+                <span class="font-semibold text-white">Điền theo tỉ lệ</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Điền rải:</span>
+                <span id="detDelay" class="font-semibold text-white"></span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Ngày tạo:</span>
+                <span id="detCreated" class="font-semibold text-white font-mono"></span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Tình trạng:</span>
+                <span id="detStatusBadge"></span>
+              </div>
+              <div class="border-t border-slate-800 pt-3 flex items-center justify-between">
+                <span class="text-slate-400">Dự kiến hoàn thành:</span>
+                <span id="detEstEnd" class="font-semibold text-indigo-400 font-mono"></span>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-[11px] italic text-amber-400/90 mt-4 leading-relaxed">
+            ⚠ Order có thể được dừng bởi người dùng bất cứ lúc nào; các phiếu chưa chạy sẽ được hoàn lại tiền/lượt tự động.
+          </p>
+        </div>
+
+        <!-- Khung phải: Thông tin Form -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-sm font-bold text-white mb-4">
+              <span class="w-4 h-4 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[11px]">📄</span>
+              <span>Thông tin Form</span>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-slate-400 shrink-0">Tên Form:</span>
+                <a id="detFormTitle" href="#" target="_blank" class="font-semibold text-indigo-400 hover:underline truncate"></a>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Tổng Order Request:</span>
+                <span id="detTotalReq" class="font-bold text-white font-mono"></span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Số Request đã chạy:</span>
+                <span id="detDoneReq" class="font-bold text-white font-mono"></span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Các request bị lỗi:</span>
+                <span id="detFailedReq" class="font-semibold"></span>
+              </div>
+
+              <div class="pt-1">
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-slate-400">Tiến độ:</span>
+                  <span id="detPctText" class="font-bold text-white font-mono">0%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                  <div id="detProgressBar" class="bg-indigo-500 h-2 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="border-t border-slate-800 pt-3 flex items-center justify-between">
+                <span class="text-slate-400">Liên kết Form gốc:</span>
+                <a id="detFormLink" href="#" target="_blank" class="text-slate-300 hover:text-white underline">Mở biểu mẫu ↗</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <div class="text-[11px] text-slate-400 mb-1">Nhật ký xử lý gần nhất:</div>
+            <div id="detLogsBox" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 h-20 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-0.5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cấu hình tỉ lệ Form đã dùng trong đơn này -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <div class="mb-4">
+          <span id="detQuestionCount" class="text-xs font-mono text-slate-400">0</span>
+          <h3 class="text-lg font-bold text-white">Cấu hình tỉ lệ Form</h3>
+        </div>
+        <div id="detQuestionsList" class="space-y-4"></div>
+      </div>
     </div>
   </div>
 
@@ -322,10 +462,23 @@
     let currentUser = null;
     let scannedData = null;
     let currentTaskId = null;
+    let selectedOrderTaskId = null;
     let pollTimer = null;
 
     function formatMoney(num) {
       return Number(num || 0).toLocaleString("vi-VN") + "đ";
+    }
+
+    function toggleGuideBox() {
+      const box = document.getElementById("guideContent");
+      const txt = document.getElementById("guideToggleText");
+      if (box.classList.contains("hidden")) {
+        box.classList.remove("hidden");
+        txt.textContent = "Thu gọn ▲";
+      } else {
+        box.classList.add("hidden");
+        txt.textContent = "Mở rộng ▼";
+      }
     }
 
     function updateVietQR() {
@@ -405,6 +558,12 @@
 
         renderTxHistory(currentUser.transactions || []);
         renderOrdersTable(currentUser.orders || []);
+
+        // Nếu đang mở trang Chi tiết Order thì tự động cập nhật số liệu mới
+        if (selectedOrderTaskId) {
+          const found = (currentUser.orders || []).find(o => o.task_id === selectedOrderTaskId);
+          if (found) renderOrderDetail(found);
+        }
       } catch (e) {
         logout();
       }
@@ -439,7 +598,7 @@
       }
     }
 
-    // RENDER BẢNG "ĐƠN HÀNG CỦA BẠN"
+    // BẢNG "ĐƠN HÀNG CỦA BẠN"
     function renderOrdersTable(orders) {
       const tbody = document.getElementById("ordersTableBody");
       if (!orders || !orders.length) {
@@ -462,7 +621,7 @@
             <td class="py-3.5 px-3 text-slate-400 font-mono text-xs">${stt}</td>
             <td class="py-3.5 px-3">
               <div class="font-semibold text-white text-sm">${escapeHtml(ord.form_title)}</div>
-              <div class="text-xs text-slate-400 mt-0.5">Điền theo tỉ lệ · Rải đều</div>
+              <div class="text-xs text-slate-400 mt-0.5">Điền theo tỉ lệ · ${escapeHtml(ord.delay_label || "Rải đều")}</div>
             </td>
             <td class="py-3.5 px-3 font-mono text-xs font-semibold text-slate-200">
               ${ord.success}/${ord.total}
@@ -477,7 +636,7 @@
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4h3v12H5V4zm7 0h3v12h-3V4z"/></svg>
                   </button>
                 ` : ""}
-                <button onclick="openOrderLogModal(${idx})" title="Xem nhật ký chạy"
+                <button onclick="openOrderDetailView('${ord.task_id}')" title="Xem chi tiết Order"
                   class="text-indigo-400 hover:text-indigo-300 p-1 rounded hover:bg-indigo-500/10 cursor-pointer">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -497,18 +656,142 @@
       }).join("");
     }
 
-    function openOrderLogModal(idx) {
-      if (!currentUser || !currentUser.orders || !currentUser.orders[idx]) return;
-      const ord = currentUser.orders[idx];
-      document.getElementById("modalOrderTitle").textContent = ord.form_title;
-      document.getElementById("modalOrderMeta").textContent = `Mã đơn: ${ord.task_id} • Tiến độ: ${ord.success}/${ord.total} phiếu • Trạng thái: ${ord.status}`;
-      const logs = ord.logs && ord.logs.length ? ord.logs : ["Không có dữ liệu nhật ký chi tiết."];
-      document.getElementById("modalOrderLogs").innerHTML = logs.map(l => `<div>${escapeHtml(l)}</div>`).join("");
-      document.getElementById("orderLogModal").classList.remove("hidden");
+    // MỞ TRANG "CHI TIẾT ORDER"
+    function openOrderDetailView(taskId) {
+      if (!currentUser || !currentUser.orders) return;
+      const ord = currentUser.orders.find(o => o.task_id === taskId);
+      if (!ord) return;
+      selectedOrderTaskId = taskId;
+      document.getElementById("dashboardView").classList.add("hidden");
+      document.getElementById("orderDetailView").classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      renderOrderDetail(ord);
     }
 
-    function closeOrderLogModal() {
-      document.getElementById("orderLogModal").classList.add("hidden");
+    function closeOrderDetailView() {
+      selectedOrderTaskId = null;
+      document.getElementById("orderDetailView").classList.add("hidden");
+      document.getElementById("dashboardView").classList.remove("hidden");
+    }
+
+    function renderOrderDetail(ord) {
+      document.getElementById("detCreator").textContent = ord.username || currentUser.username;
+      document.getElementById("detDelay").textContent = ord.delay_label || "Điền giãn cách đều";
+      document.getElementById("detCreated").textContent = ord.created_at;
+      document.getElementById("detEstEnd").textContent = ord.estimated_end || ord.created_at;
+
+      const isRunning = ord.status === "Đang chạy";
+      const stopBtn = document.getElementById("detailStopBtn");
+      if (isRunning) {
+        stopBtn.classList.remove("hidden");
+        stopBtn.onclick = () => stopCampaignById(ord.task_id);
+        document.getElementById("detStatusBadge").innerHTML =
+          `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">Đang chạy</span>`;
+      } else if (ord.status === "Đã dừng") {
+        stopBtn.classList.add("hidden");
+        document.getElementById("detStatusBadge").innerHTML =
+          `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Đã dừng</span>`;
+      } else {
+        stopBtn.classList.add("hidden");
+        document.getElementById("detStatusBadge").innerHTML =
+          `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">${escapeHtml(ord.status)}</span>`;
+      }
+
+      const formTitleEl = document.getElementById("detFormTitle");
+      formTitleEl.textContent = ord.form_title;
+      formTitleEl.href = ord.view_url;
+      document.getElementById("detFormLink").href = ord.view_url;
+
+      document.getElementById("detTotalReq").textContent = ord.total;
+      document.getElementById("detDoneReq").textContent = ord.success;
+
+      const failEl = document.getElementById("detFailedReq");
+      if (!ord.failed || ord.failed === 0) {
+        failEl.textContent = "Chưa có lỗi";
+        failEl.className = "font-semibold text-emerald-400";
+      } else {
+        failEl.textContent = `${ord.failed} lỗi (đã hoàn tiền)`;
+        failEl.className = "font-semibold text-rose-400";
+      }
+
+      const pct = ord.total > 0 ? Math.round((ord.success / ord.total) * 100) : 0;
+      document.getElementById("detPctText").textContent = `${pct}%`;
+      document.getElementById("detProgressBar").style.width = `${pct}%`;
+
+      const logs = ord.logs && ord.logs.length ? ord.logs : ["Chưa có nhật ký chi tiết."];
+      const logsBox = document.getElementById("detLogsBox");
+      logsBox.innerHTML = logs.map(l => `<div>${escapeHtml(l)}</div>`).join("");
+      logsBox.scrollTop = logsBox.scrollHeight;
+
+      // Hiển thị cấu hình tỉ lệ Form đã lưu (chỉ đọc)
+      const qList = ord.questions || [];
+      document.getElementById("detQuestionCount").textContent = `${qList.length} câu hỏi`;
+      const qContainer = document.getElementById("detQuestionsList");
+
+      if (!qList.length) {
+        qContainer.innerHTML = `<div class="text-xs text-slate-500">Không có dữ liệu cấu hình tỉ lệ cho đơn hàng cũ này.</div>`;
+        return;
+      }
+
+      qContainer.innerHTML = qList.map(q => {
+        if (q.kind === "single" || q.kind === "checkbox") {
+          const sum = (q.weights || []).reduce((a, b) => a + Number(b || 0), 0);
+          const badgeHtml = q.kind === "single"
+            ? (sum === 100
+                ? `<span class="inline-block mt-3 text-xs font-semibold px-3 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Tổng: 100% ✓ OK</span>`
+                : `<span class="inline-block mt-3 text-xs font-semibold px-3 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30">Tổng: ${sum}%</span>`)
+            : `<span class="inline-block mt-3 text-xs font-semibold px-3 py-1 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">Chọn nhiều (% độc lập)</span>`;
+
+          return `
+            <div class="border-t border-slate-800 pt-4">
+              <div class="text-xs font-semibold text-slate-300 mb-3">${escapeHtml(q.title)}</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                ${(q.options || []).map((opt, idx) => `
+                  <div class="relative bg-slate-950 border border-slate-700/80 rounded-lg px-3.5 pt-3 pb-2.5">
+                    <span class="block text-[11px] text-slate-400 truncate mb-1" title="${escapeHtml(opt)}">${escapeHtml(opt)}</span>
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-bold text-white">${q.weights[idx] ?? 0}</span>
+                      <span class="text-xs text-slate-400 font-semibold">%</span>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+              ${badgeHtml}
+            </div>
+          `;
+        } else if (q.kind === "grid") {
+          return `
+            <div class="border-t border-slate-800 pt-4">
+              <div class="text-xs font-semibold text-slate-300 mb-3">${escapeHtml(q.title)}</div>
+              <div class="space-y-3">
+                ${(q.rows || []).map(row => `
+                  <div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3">
+                    <div class="text-xs text-slate-300 font-medium mb-2">${escapeHtml(row.row_label)}</div>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      ${(row.options || []).map((opt, oIdx) => `
+                        <div class="bg-slate-950 border border-slate-800 rounded px-2.5 py-2">
+                          <span class="block text-[10px] text-slate-400 truncate">${escapeHtml(opt)}</span>
+                          <div class="flex justify-between items-center mt-0.5">
+                            <span class="text-xs font-bold text-white">${row.weights[oIdx] ?? 0}</span>
+                            <span class="text-[11px] text-slate-500">%</span>
+                          </div>
+                        </div>
+                      `).join("")}
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        } else {
+          return `
+            <div class="border-t border-slate-800 pt-4">
+              <div class="text-xs font-semibold text-slate-300 mb-2">${escapeHtml(q.title)} (Tự luận)</div>
+              <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 whitespace-pre-line">${escapeHtml((q.samples || []).join("\n"))}</div>
+            </div>
+          `;
+        }
+      }).join("");
     }
 
     function openTopupModal() {
@@ -648,6 +931,7 @@
       }
     }
 
+    // RENDER CẤU HÌNH TỈ LỆ KIỂU THẺ NỔI + BADGE "Tổng: 100% ✓ OK"
     function renderWorkspace() {
       document.getElementById("workspace").classList.remove("hidden");
       document.getElementById("formTitleDisplay").textContent = scannedData.form_title;
@@ -663,66 +947,81 @@
 
         if (q.kind === "single") {
           card.innerHTML = `
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <div>
-                <span class="text-xs font-semibold text-indigo-400">[Chọn 1 đáp án]</span>
-                <h3 class="font-semibold text-slate-100 text-sm mt-0.5">${escapeHtml(q.title)}</h3>
-              </div>
-              <span id="sum-badge-${qIdx}" class="text-xs font-mono px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300">Tổng: 100%</span>
+            <div class="mb-3.5">
+              <span class="text-xs font-semibold text-indigo-400">[Chọn 1 đáp án]</span>
+              <h3 class="font-semibold text-slate-100 text-sm mt-0.5">${escapeHtml(q.title)}</h3>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               ${q.options.map((opt, oIdx) => `
-                <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
-                  <span class="text-xs text-slate-300 truncate pr-2" title="${escapeHtml(opt)}">${escapeHtml(opt)}</span>
-                  <input type="number" min="0" max="100" value="${q.weights[oIdx]}"
-                    oninput="updateSingleWeight(${qIdx}, ${oIdx}, this.value)"
-                    class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-xs font-semibold text-white" />
+                <div class="relative bg-slate-950 border border-slate-700/90 focus-within:border-indigo-500 rounded-lg px-3.5 pt-2.5 pb-2 transition">
+                  <span class="block text-[11px] text-slate-400 truncate mb-1" title="${escapeHtml(opt)}">${escapeHtml(opt)}</span>
+                  <div class="flex items-center justify-between">
+                    <input type="number" min="0" max="100" value="${q.weights[oIdx]}"
+                      oninput="updateSingleWeight(${qIdx}, ${oIdx}, this.value)"
+                      class="w-full bg-transparent text-sm font-bold text-white focus:outline-none" />
+                    <span class="text-xs text-slate-400 font-semibold ml-2">%</span>
+                  </div>
                 </div>
               `).join("")}
+            </div>
+            <div class="mt-3">
+              <span id="sum-badge-${qIdx}" class="inline-block text-xs font-semibold px-3 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Tổng: 100% ✓ OK
+              </span>
             </div>
           `;
         } else if (q.kind === "checkbox") {
           card.innerHTML = `
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <div>
-                <span class="text-xs font-semibold text-amber-400">[Chọn nhiều - % số phiếu chọn ô này]</span>
-                <h3 class="font-semibold text-slate-100 text-sm mt-0.5">${escapeHtml(q.title)}</h3>
-              </div>
-              <span class="text-xs text-slate-400">Mỗi ô từ 0% đến 100%</span>
+            <div class="mb-3.5">
+              <span class="text-xs font-semibold text-amber-400">[Chọn nhiều - % số phiếu chọn ô này]</span>
+              <h3 class="font-semibold text-slate-100 text-sm mt-0.5">${escapeHtml(q.title)}</h3>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               ${q.options.map((opt, oIdx) => `
-                <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
-                  <span class="text-xs text-slate-300 truncate pr-2" title="${escapeHtml(opt)}">${escapeHtml(opt)}</span>
-                  <input type="number" min="0" max="100" value="${q.weights[oIdx]}"
-                    oninput="scannedData.questions[${qIdx}].weights[${oIdx}] = Number(this.value)"
-                    class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-xs font-semibold text-amber-300" />
+                <div class="relative bg-slate-950 border border-slate-700/90 focus-within:border-amber-500 rounded-lg px-3.5 pt-2.5 pb-2 transition">
+                  <span class="block text-[11px] text-slate-400 truncate mb-1" title="${escapeHtml(opt)}">${escapeHtml(opt)}</span>
+                  <div class="flex items-center justify-between">
+                    <input type="number" min="0" max="100" value="${q.weights[oIdx]}"
+                      oninput="scannedData.questions[${qIdx}].weights[${oIdx}] = Number(this.value)"
+                      class="w-full bg-transparent text-sm font-bold text-amber-300 focus:outline-none" />
+                    <span class="text-xs text-slate-400 font-semibold ml-2">%</span>
+                  </div>
                 </div>
               `).join("")}
+            </div>
+            <div class="mt-3">
+              <span class="inline-block text-xs font-semibold px-3 py-1 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                Chọn nhiều · Nhập độc lập 0% - 100%
+              </span>
             </div>
           `;
         } else if (q.kind === "grid") {
           card.innerHTML = `
-            <div class="mb-3">
+            <div class="mb-3.5">
               <span class="text-xs font-semibold text-purple-400">[Lưới thang đo - Mỗi hàng tổng 100%]</span>
               <h3 class="font-semibold text-slate-100 text-sm mt-0.5">${escapeHtml(q.title)}</h3>
             </div>
             <div class="space-y-3">
               ${q.rows.map((row, rIdx) => `
-                <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-medium text-slate-200">${escapeHtml(row.row_label)}</span>
-                    <span id="grid-sum-${qIdx}-${rIdx}" class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Tổng: 100%</span>
-                  </div>
-                  <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3.5">
+                  <div class="text-xs font-medium text-slate-200 mb-2.5">${escapeHtml(row.row_label)}</div>
+                  <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                     ${row.options.map((opt, oIdx) => `
-                      <div class="flex flex-col bg-slate-900 border border-slate-800 rounded p-2">
-                        <span class="text-[11px] text-slate-400 truncate mb-1" title="${escapeHtml(opt)}">${escapeHtml(opt)}</span>
-                        <input type="number" min="0" max="100" value="${row.weights[oIdx]}"
-                          oninput="updateGridWeight(${qIdx}, ${rIdx}, ${oIdx}, this.value)"
-                          class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-right text-xs font-semibold text-white" />
+                      <div class="bg-slate-950 border border-slate-700/90 focus-within:border-purple-500 rounded-lg px-3 pt-2 pb-1.5">
+                        <span class="block text-[10px] text-slate-400 truncate mb-0.5" title="${escapeHtml(opt)}">${escapeHtml(opt)}</span>
+                        <div class="flex items-center justify-between">
+                          <input type="number" min="0" max="100" value="${row.weights[oIdx]}"
+                            oninput="updateGridWeight(${qIdx}, ${rIdx}, ${oIdx}, this.value)"
+                            class="w-full bg-transparent text-xs font-bold text-white focus:outline-none" />
+                          <span class="text-[11px] text-slate-500 font-semibold ml-1">%</span>
+                        </div>
                       </div>
                     `).join("")}
+                  </div>
+                  <div class="mt-2.5">
+                    <span id="grid-sum-${qIdx}-${rIdx}" class="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      Tổng: 100% ✓ OK
+                    </span>
                   </div>
                 </div>
               `).join("")}
@@ -736,7 +1035,7 @@
             </div>
             <textarea rows="3"
               oninput="scannedData.questions[${qIdx}].samples = this.value.split('\\n')"
-              class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-200"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
             >${q.samples.join("\n")}</textarea>
           `;
         }
@@ -748,20 +1047,26 @@
       scannedData.questions[qIdx].weights[oIdx] = Number(val) || 0;
       const sum = scannedData.questions[qIdx].weights.reduce((a, b) => a + b, 0);
       const badge = document.getElementById(`sum-badge-${qIdx}`);
-      badge.textContent = `Tổng: ${sum}%`;
-      badge.className = sum === 100
-        ? "text-xs font-mono px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300"
-        : "text-xs font-mono px-2.5 py-1 rounded bg-rose-500/20 text-rose-300";
+      if (sum === 100) {
+        badge.textContent = "Tổng: 100% ✓ OK";
+        badge.className = "inline-block text-xs font-semibold px-3 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
+      } else {
+        badge.textContent = `Tổng: ${sum}% (Cần điều chỉnh về 100%)`;
+        badge.className = "inline-block text-xs font-semibold px-3 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30";
+      }
     }
 
     function updateGridWeight(qIdx, rIdx, oIdx, val) {
       scannedData.questions[qIdx].rows[rIdx].weights[oIdx] = Number(val) || 0;
       const sum = scannedData.questions[qIdx].rows[rIdx].weights.reduce((a, b) => a + b, 0);
       const badge = document.getElementById(`grid-sum-${qIdx}-${rIdx}`);
-      badge.textContent = `Tổng: ${sum}%`;
-      badge.className = sum === 100
-        ? "text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300"
-        : "text-xs font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300";
+      if (sum === 100) {
+        badge.textContent = "Tổng: 100% ✓ OK";
+        badge.className = "inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
+      } else {
+        badge.textContent = `Tổng: ${sum}% (Cần 100%)`;
+        badge.className = "inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30";
+      }
     }
 
     async function startCampaign() {
@@ -801,7 +1106,7 @@
       document.getElementById("progressWrapper").classList.remove("hidden");
 
       currentTaskId = data.task_id;
-      refreshProfile(); // Cập nhật ngay dòng đơn hàng mới vào bảng lịch sử
+      refreshProfile();
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(pollStatus, 1500);
     }
@@ -835,7 +1140,7 @@
       logBox.innerHTML = st.logs.map(line => `<div>${escapeHtml(line)}</div>`).join("");
       logBox.scrollTop = logBox.scrollHeight;
 
-      refreshProfile(); // Đồng bộ số lượng đang chạy trên bảng Đơn hàng của bạn
+      refreshProfile();
 
       if (st.status !== "running") {
         clearInterval(pollTimer);

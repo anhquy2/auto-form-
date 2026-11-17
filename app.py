@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -74,7 +74,6 @@ def init_db():
             )
             """
         )
-        # Bổ sung cột free_trials nếu database cũ chưa có
         try:
             conn.execute("ALTER TABLE users ADD COLUMN free_trials INTEGER NOT NULL DEFAULT 10")
         except sqlite3.OperationalError:
@@ -105,10 +104,24 @@ def init_db():
                 failed INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                estimated_end TEXT NOT NULL DEFAULT '',
+                delay_label TEXT NOT NULL DEFAULT 'Điền giãn cách đều',
+                questions_json TEXT NOT NULL DEFAULT '[]',
                 logs_json TEXT NOT NULL DEFAULT '[]'
             )
             """
         )
+        # Bổ sung các cột chi tiết đơn hàng nếu database cũ đã tồn tại
+        for alter_sql in [
+            "ALTER TABLE orders ADD COLUMN estimated_end TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE orders ADD COLUMN delay_label TEXT NOT NULL DEFAULT 'Điền giãn cách đều'",
+            "ALTER TABLE orders ADD COLUMN questions_json TEXT NOT NULL DEFAULT '[]'",
+        ]:
+            try:
+                conn.execute(alter_sql)
+            except sqlite3.OperationalError:
+                pass
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS processed_webhooks (
@@ -356,7 +369,11 @@ def api_me(username: str = Depends(get_current_user)):
             (username,),
         ).fetchall()
         order_rows = conn.execute(
-            "SELECT id, task_id, form_title, view_url, total, success, failed, status, created_at, logs_json FROM orders WHERE username = ? ORDER BY id DESC LIMIT 30",
+            """
+            SELECT id, task_id, username, form_title, view_url, total, success, failed, status,
+                   created_at, estimated_end, delay_label, questions_json, logs_json
+            FROM orders WHERE username = ? ORDER BY id DESC LIMIT 30
+            """,
             (username,),
         ).fetchall()
         conn.close()
@@ -371,6 +388,10 @@ def api_me(username: str = Depends(get_current_user)):
             item["logs"] = json.loads(item.pop("logs_json", "[]"))
         except Exception:
             item["logs"] = []
+        try:
+            item["questions"] = json.loads(item.pop("questions_json", "[]"))
+        except Exception:
+            item["questions"] = []
         orders_list.append(item)
 
     return {
@@ -639,7 +660,6 @@ def execute_campaign_worker(task_id: str, username: str, req: RunRequest, paid_u
             sleep_sec = random.uniform(min(req.delay_min, req.delay_max), max(req.delay_min, req.delay_max))
             time.sleep(max(0.2, sleep_sec))
 
-    # Hoàn tiền / hoàn lượt free cho các phiếu chưa hoàn thành
     unfulfilled = total - task["success"]
     if unfulfilled > 0:
         refund_paid_count = min(unfulfilled, paid_used)
@@ -667,108 +687,3 @@ def execute_campaign_worker(task_id: str, username: str, req: RunRequest, paid_u
 @app.get("/")
 def serve_homepage():
     return FileResponse("index.html")
-
-
-@app.post("/api/scan")
-def api_scan_form(req: ScanRequest, username: str = Depends(get_current_user)):
-    try:
-        html_text, real_view_url, submit_url = resolve_urls(req.url)
-        form_title, questions, page_history = parse_form_html(html_text)
-        return {
-            "form_title": form_title,
-            "view_url": real_view_url,
-            "submit_url": submit_url,
-            "page_history": page_history,
-            "questions": questions,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@app.post("/api/run")
-def api_run_campaign(req: RunRequest, username: str = Depends(get_current_user)):
-    if req.total < 1 or req.total > 2000:
-        raise HTTPException(status_code=400, detail="Số lượng phiếu phải nằm trong khoảng 1 đến 2000.")
-
-    with DB_LOCK:
-        conn = get_db()
-        u_row = conn.execute("SELECT balance, free_trials FROM users WHERE username = ?", (username,)).fetchone()
-        conn.close()
-
-    if not u_row:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản.")
-
-    free_avail = u_row["free_trials"]
-    free_used = min(free_avail, req.total)
-    paid_used = req.total - free_used
-    total_cost = paid_used * PRICE_PER_SURVEY
-    task_id = str(uuid.uuid4())[:8]
-
-    try:
-        new_balance, new_free = adjust_balance(
-            username,
-            -total_cost,
-            "CHARGE",
-            f"Đơn {req.total} phiếu (Dùng {free_used} free + {total_cost:,}đ, mã {task_id})",
-            free_delta=-free_used,
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=402,
-            detail=f"Số dư không đủ! Cần {total_cost:,}đ (đã trừ {free_used} lượt free). Vui lòng nạp thêm tiền.",
-        )
-
-    init_logs = [f"[*] Bắt đầu đơn {req.total} phiếu (Dùng {free_used} lượt free + {total_cost:,}đ)..."]
-    now_date = datetime.now().strftime("%d/%m/%Y")
-
-    with DB_LOCK:
-        conn = get_db()
-        conn.execute(
-            """
-            INSERT INTO orders (task_id, username, form_title, view_url, total, success, failed, status, created_at, logs_json)
-            VALUES (?, ?, ?, ?, ?, 0, 0, 'Đang chạy', ?, ?)
-            """,
-            (task_id, username, req.form_title or "Mẫu không có tiêu đề", req.view_url, req.total, now_date, json.dumps(init_logs, ensure_ascii=False)),
-        )
-        conn.commit()
-        conn.close()
-
-    TASKS[task_id] = {
-        "task_id": task_id,
-        "owner": username,
-        "status": "running",
-        "total": req.total,
-        "sent": 0,
-        "success": 0,
-        "failed": 0,
-        "stop_requested": False,
-        "logs": init_logs,
-    }
-
-    worker = threading.Thread(
-        target=execute_campaign_worker,
-        args=(task_id, username, req, paid_used, free_used),
-        daemon=True,
-    )
-    worker.start()
-    return {"task_id": task_id, "new_balance": new_balance, "new_free_trials": new_free}
-
-
-@app.post("/api/stop/{task_id}")
-def api_stop_campaign(task_id: str, username: str = Depends(get_current_user)):
-    if task_id in TASKS and TASKS[task_id]["owner"] == username:
-        TASKS[task_id]["stop_requested"] = True
-        return {"ok": True}
-    raise HTTPException(status_code=404, detail="Đơn hàng đã kết thúc hoặc không tồn tại.")
-
-
-@app.get("/api/status/{task_id}")
-def api_get_status(task_id: str, username: str = Depends(get_current_user)):
-    if task_id not in TASKS or TASKS[task_id]["owner"] != username:
-        raise HTTPException(status_code=404, detail="Không tìm thấy phiên chạy.")
-    return TASKS[task_id]
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
