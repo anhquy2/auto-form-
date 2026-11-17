@@ -17,15 +17,16 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="Auto Google Form SaaS")
+app = FastAPI(title="Auto Google Form Studio by VQuy")
 
 # ==============================================================================
 # CẤU HÌNH DỊCH VỤ, ADMIN & WEBHOOK TỰ ĐỘNG CỘNG TIỀN
 # ==============================================================================
-PRICE_PER_SURVEY = 250  # 250 VNĐ / 1 phiếu khảo sát thành công
-ADMIN_USERNAME = "anhquy19"
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "anhquy1907")
-WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "quy_secret_2026")  # Mã bảo mật Webhook
+PRICE_PER_SURVEY = 250  # 250 VNĐ / 1 phiếu khảo sát
+FREE_TRIALS_ON_SIGNUP = 10  # Tặng 10 lượt trải nghiệm khi tạo tài khoản mới
+ADMIN_USERNAME = "quy2026"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "quy2026")
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "quy_secret_2026")
 DB_PATH = "survey_saas.db"
 
 SESSIONS: Dict[str, str] = {}
@@ -68,10 +69,17 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 salt TEXT NOT NULL,
                 balance INTEGER NOT NULL DEFAULT 0,
+                free_trials INTEGER NOT NULL DEFAULT 10,
                 created_at TEXT NOT NULL
             )
             """
         )
+        # Bổ sung cột free_trials nếu database cũ chưa có
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN free_trials INTEGER NOT NULL DEFAULT 10")
+        except sqlite3.OperationalError:
+            pass
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS transactions (
@@ -81,6 +89,23 @@ def init_db():
                 tx_type TEXT NOT NULL,
                 note TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT UNIQUE NOT NULL,
+                username TEXT NOT NULL,
+                form_title TEXT NOT NULL,
+                view_url TEXT NOT NULL,
+                total INTEGER NOT NULL,
+                success INTEGER NOT NULL DEFAULT 0,
+                failed INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                logs_json TEXT NOT NULL DEFAULT '[]'
             )
             """
         )
@@ -100,8 +125,8 @@ def init_db():
             pw_hash = hash_password(ADMIN_PASSWORD, salt)
             now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             conn.execute(
-                "INSERT INTO users (username, password_hash, salt, balance, created_at) VALUES (?, ?, ?, 0, ?)",
-                (ADMIN_USERNAME.lower(), pw_hash, salt, now_str),
+                "INSERT INTO users (username, password_hash, salt, balance, free_trials, created_at) VALUES (?, ?, ?, 0, ?, ?)",
+                (ADMIN_USERNAME.lower(), pw_hash, salt, FREE_TRIALS_ON_SIGNUP, now_str),
             )
         conn.commit()
         conn.close()
@@ -110,26 +135,44 @@ def init_db():
 init_db()
 
 
-def adjust_balance(username: str, delta: int, tx_type: str, note: str) -> int:
+def adjust_balance(username: str, delta: int, tx_type: str, note: str, free_delta: int = 0):
     with DB_LOCK:
         conn = get_db()
-        row = conn.execute("SELECT balance FROM users WHERE username = ?", (username,)).fetchone()
+        row = conn.execute(
+            "SELECT balance, free_trials FROM users WHERE username = ?", (username,)
+        ).fetchone()
         if not row:
             conn.close()
             raise ValueError("Tài khoản không tồn tại.")
         new_balance = row["balance"] + delta
-        if new_balance < 0:
+        new_free = row["free_trials"] + free_delta
+        if new_balance < 0 or new_free < 0:
             conn.close()
-            raise ValueError("Số dư không đủ để thực hiện giao dịch.")
+            raise ValueError("Số dư hoặc lượt miễn phí không đủ để thực hiện giao dịch.")
         now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        conn.execute("UPDATE users SET balance = ? WHERE username = ?", (new_balance, username))
         conn.execute(
-            "INSERT INTO transactions (username, amount, tx_type, note, created_at) VALUES (?, ?, ?, ?, ?)",
-            (username, delta, tx_type, note, now_str),
+            "UPDATE users SET balance = ?, free_trials = ? WHERE username = ?",
+            (new_balance, new_free, username),
+        )
+        if delta != 0 or free_delta != 0:
+            conn.execute(
+                "INSERT INTO transactions (username, amount, tx_type, note, created_at) VALUES (?, ?, ?, ?, ?)",
+                (username, delta, tx_type, note, now_str),
+            )
+        conn.commit()
+        conn.close()
+        return new_balance, new_free
+
+
+def update_order_db(task_id: str, success: int, failed: int, status: str, logs: List[str]):
+    with DB_LOCK:
+        conn = get_db()
+        conn.execute(
+            "UPDATE orders SET success = ?, failed = ?, status = ?, logs_json = ? WHERE task_id = ?",
+            (success, failed, status, json.dumps(logs[-100:], ensure_ascii=False), task_id),
         )
         conn.commit()
         conn.close()
-        return new_balance
 
 
 def get_current_user(authorization: Optional[str] = Header(default=None)) -> str:
@@ -158,6 +201,7 @@ class ScanRequest(BaseModel):
 
 
 class RunRequest(BaseModel):
+    form_title: str = "Mẫu không có tiêu đề"
     view_url: str
     submit_url: str
     page_history: str
@@ -174,7 +218,7 @@ class AdminTopupRequest(BaseModel):
 
 
 # ==============================================================================
-# WEBHOOK TỰ ĐỘNG CỘNG TIỀN (SEPAY / CASSO)
+# WEBHOOK TỰ ĐỘNG CỘNG TIỀN (SEPAY)
 # ==============================================================================
 @app.post("/api/webhook/payment")
 async def api_payment_webhook(request: Request, authorization: Optional[str] = Header(default=None)):
@@ -186,7 +230,6 @@ async def api_payment_webhook(request: Request, authorization: Optional[str] = H
 
     data = await request.json()
 
-    # Hỗ trợ chuẩn dữ liệu SePay (transferType == 'in', transferAmount, content, id/referenceCode)
     transfer_type = str(data.get("transferType", "in")).lower()
     if transfer_type != "in":
         return {"ok": True, "ignored": "Giao dịch tiền ra"}
@@ -198,14 +241,12 @@ async def api_payment_webhook(request: Request, authorization: Optional[str] = H
     if amount <= 0:
         return {"ok": True, "ignored": "Số tiền không hợp lệ"}
 
-    # Tìm cú pháp: NAP <username> (không phân biệt hoa thường)
     match = re.search(r"\bNAP\s*([a-z0-9_]{3,24})\b", content, re.IGNORECASE)
     if not match:
         return {"ok": True, "ignored": f"Không tìm thấy mã NAP <username> trong nội dung: {content}"}
 
     target_username = match.group(1).lower()
 
-    # Chống cộng trùng 1 giao dịch nhiều lần
     with DB_LOCK:
         conn = get_db()
         dup = conn.execute("SELECT tx_ref FROM processed_webhooks WHERE tx_ref = ?", (tx_ref,)).fetchone()
@@ -220,7 +261,7 @@ async def api_payment_webhook(request: Request, authorization: Optional[str] = H
         conn.close()
 
     try:
-        new_bal = adjust_balance(
+        new_bal, _ = adjust_balance(
             target_username,
             amount,
             "AUTO_TOPUP",
@@ -232,7 +273,7 @@ async def api_payment_webhook(request: Request, authorization: Optional[str] = H
 
 
 # ==============================================================================
-# API TÀI KHOẢN & SỐ DƯ
+# API TÀI KHOẢN, SỐ DƯ & LỊCH SỬ ĐƠN HÀNG
 # ==============================================================================
 @app.post("/api/register")
 def api_register(req: AuthRequest):
@@ -255,8 +296,12 @@ def api_register(req: AuthRequest):
         conn = get_db()
         try:
             conn.execute(
-                "INSERT INTO users (username, password_hash, salt, balance, created_at) VALUES (?, ?, ?, 0, ?)",
-                (uname, pw_hash, salt, now_str),
+                "INSERT INTO users (username, password_hash, salt, balance, free_trials, created_at) VALUES (?, ?, ?, 0, ?, ?)",
+                (uname, pw_hash, salt, FREE_TRIALS_ON_SIGNUP, now_str),
+            )
+            conn.execute(
+                "INSERT INTO transactions (username, amount, tx_type, note, created_at) VALUES (?, 0, 'BONUS', ?, ?)",
+                (uname, f"Tặng {FREE_TRIALS_ON_SIGNUP} lượt trải nghiệm miễn phí tài khoản mới", now_str),
             )
             conn.commit()
         except sqlite3.IntegrityError:
@@ -270,6 +315,7 @@ def api_register(req: AuthRequest):
         "token": token,
         "username": uname,
         "balance": 0,
+        "free_trials": FREE_TRIALS_ON_SIGNUP,
         "is_admin": False,
         "price_per_survey": PRICE_PER_SURVEY,
     }
@@ -292,6 +338,7 @@ def api_login(req: AuthRequest):
         "token": token,
         "username": uname,
         "balance": row["balance"],
+        "free_trials": row["free_trials"],
         "is_admin": (uname == ADMIN_USERNAME.lower()),
         "price_per_survey": PRICE_PER_SURVEY,
     }
@@ -301,9 +348,15 @@ def api_login(req: AuthRequest):
 def api_me(username: str = Depends(get_current_user)):
     with DB_LOCK:
         conn = get_db()
-        user_row = conn.execute("SELECT username, balance FROM users WHERE username = ?", (username,)).fetchone()
+        user_row = conn.execute(
+            "SELECT username, balance, free_trials FROM users WHERE username = ?", (username,)
+        ).fetchone()
         tx_rows = conn.execute(
             "SELECT amount, tx_type, note, created_at FROM transactions WHERE username = ? ORDER BY id DESC LIMIT 20",
+            (username,),
+        ).fetchall()
+        order_rows = conn.execute(
+            "SELECT id, task_id, form_title, view_url, total, success, failed, status, created_at, logs_json FROM orders WHERE username = ? ORDER BY id DESC LIMIT 30",
             (username,),
         ).fetchall()
         conn.close()
@@ -311,12 +364,23 @@ def api_me(username: str = Depends(get_current_user)):
     if not user_row:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng.")
 
+    orders_list = []
+    for r in order_rows:
+        item = dict(r)
+        try:
+            item["logs"] = json.loads(item.pop("logs_json", "[]"))
+        except Exception:
+            item["logs"] = []
+        orders_list.append(item)
+
     return {
         "username": user_row["username"],
         "balance": user_row["balance"],
+        "free_trials": user_row["free_trials"],
         "is_admin": (username == ADMIN_USERNAME.lower()),
         "price_per_survey": PRICE_PER_SURVEY,
         "transactions": [dict(r) for r in tx_rows],
+        "orders": orders_list,
     }
 
 
@@ -328,7 +392,7 @@ def api_admin_users(admin_username: str = Depends(get_admin_user)):
     with DB_LOCK:
         conn = get_db()
         rows = conn.execute(
-            "SELECT id, username, balance, created_at FROM users ORDER BY id DESC"
+            "SELECT id, username, balance, free_trials, created_at FROM users ORDER BY id DESC"
         ).fetchall()
         conn.close()
     return {"users": [dict(r) for r in rows]}
@@ -340,7 +404,7 @@ def api_admin_topup(req: AdminTopupRequest, admin_username: str = Depends(get_ad
     if req.amount == 0:
         raise HTTPException(status_code=400, detail="Số tiền phải khác 0.")
     try:
-        new_bal = adjust_balance(uname, req.amount, "TOPUP", req.note)
+        new_bal, _ = adjust_balance(uname, req.amount, "TOPUP", req.note)
         return {"username": uname, "new_balance": new_bal}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -377,7 +441,7 @@ def parse_form_html(html_text: str):
         raise ValueError("Không đọc được dữ liệu biểu mẫu. Hãy kiểm tra quyền truy cập công khai của Form.")
 
     raw_data = json.loads(match.group(1))
-    form_title = raw_data[1][8] if (len(raw_data[1]) > 8 and raw_data[1][8]) else "Khảo sát Google Form"
+    form_title = raw_data[1][8] if (len(raw_data[1]) > 8 and raw_data[1][8]) else "Mẫu không có tiêu đề"
     items = raw_data[1][1]
 
     questions = []
@@ -514,7 +578,7 @@ def build_checkbox_pool(options: List[str], percentages: List[float], total_n: i
     return matrix
 
 
-def execute_campaign_worker(task_id: str, username: str, req: RunRequest):
+def execute_campaign_worker(task_id: str, username: str, req: RunRequest, paid_used: int, free_used: int):
     task = TASKS[task_id]
     total = req.total
     payloads = [[("pageHistory", req.page_history)] for _ in range(total)]
@@ -569,24 +633,35 @@ def execute_campaign_worker(task_id: str, username: str, req: RunRequest):
         if len(task["logs"]) > 100:
             task["logs"] = task["logs"][-100:]
 
+        update_order_db(task_id, task["success"], task["failed"], "Đang chạy", task["logs"])
+
         if i < total and not task["stop_requested"]:
             sleep_sec = random.uniform(min(req.delay_min, req.delay_max), max(req.delay_min, req.delay_max))
             time.sleep(max(0.2, sleep_sec))
 
+    # Hoàn tiền / hoàn lượt free cho các phiếu chưa hoàn thành
     unfulfilled = total - task["success"]
     if unfulfilled > 0:
-        refund_amount = unfulfilled * PRICE_PER_SURVEY
+        refund_paid_count = min(unfulfilled, paid_used)
+        refund_free_count = unfulfilled - refund_paid_count
+        refund_money = refund_paid_count * PRICE_PER_SURVEY
         adjust_balance(
             username,
-            refund_amount,
+            refund_money,
             "REFUND",
-            f"Hoàn tiền {unfulfilled} phiếu chưa hoàn thành (Mã phiên {task_id})",
+            f"Hoàn {refund_money:,}đ và {refund_free_count} lượt free ({unfulfilled} phiếu chưa chạy, mã đơn {task_id})",
+            free_delta=refund_free_count,
         )
-        task["logs"].append(f"[HOÀN TIỀN] Đã hoàn {refund_amount:,}đ cho {unfulfilled} phiếu chưa thành công.")
+        task["logs"].append(
+            f"[HOÀN LẠI] Đã hoàn {refund_money:,}đ và {refund_free_count} lượt free cho {unfulfilled} phiếu chưa xong."
+        )
 
+    final_label = "Đã dừng" if task["status"] == "stopped" else "Hoàn thành"
     if task["status"] == "running":
         task["status"] = "completed"
         task["logs"].append(f"[HOÀN TẤT] Thành công {task['success']}/{total} phiếu.")
+
+    update_order_db(task_id, task["success"], task["failed"], final_label, task["logs"])
 
 
 @app.get("/")
@@ -615,21 +690,48 @@ def api_run_campaign(req: RunRequest, username: str = Depends(get_current_user))
     if req.total < 1 or req.total > 2000:
         raise HTTPException(status_code=400, detail="Số lượng phiếu phải nằm trong khoảng 1 đến 2000.")
 
-    total_cost = req.total * PRICE_PER_SURVEY
+    with DB_LOCK:
+        conn = get_db()
+        u_row = conn.execute("SELECT balance, free_trials FROM users WHERE username = ?", (username,)).fetchone()
+        conn.close()
+
+    if not u_row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản.")
+
+    free_avail = u_row["free_trials"]
+    free_used = min(free_avail, req.total)
+    paid_used = req.total - free_used
+    total_cost = paid_used * PRICE_PER_SURVEY
     task_id = str(uuid.uuid4())[:8]
 
     try:
-        new_balance = adjust_balance(
+        new_balance, new_free = adjust_balance(
             username,
             -total_cost,
             "CHARGE",
-            f"Chạy {req.total} phiếu khảo sát (Mã phiên {task_id})",
+            f"Đơn {req.total} phiếu (Dùng {free_used} free + {total_cost:,}đ, mã {task_id})",
+            free_delta=-free_used,
         )
     except ValueError:
         raise HTTPException(
             status_code=402,
-            detail=f"Số dư không đủ! Cần {total_cost:,}đ cho {req.total} phiếu (250đ/phiếu). Vui lòng nạp thêm tiền.",
+            detail=f"Số dư không đủ! Cần {total_cost:,}đ (đã trừ {free_used} lượt free). Vui lòng nạp thêm tiền.",
         )
+
+    init_logs = [f"[*] Bắt đầu đơn {req.total} phiếu (Dùng {free_used} lượt free + {total_cost:,}đ)..."]
+    now_date = datetime.now().strftime("%d/%m/%Y")
+
+    with DB_LOCK:
+        conn = get_db()
+        conn.execute(
+            """
+            INSERT INTO orders (task_id, username, form_title, view_url, total, success, failed, status, created_at, logs_json)
+            VALUES (?, ?, ?, ?, ?, 0, 0, 'Đang chạy', ?, ?)
+            """,
+            (task_id, username, req.form_title or "Mẫu không có tiêu đề", req.view_url, req.total, now_date, json.dumps(init_logs, ensure_ascii=False)),
+        )
+        conn.commit()
+        conn.close()
 
     TASKS[task_id] = {
         "task_id": task_id,
@@ -640,20 +742,24 @@ def api_run_campaign(req: RunRequest, username: str = Depends(get_current_user))
         "success": 0,
         "failed": 0,
         "stop_requested": False,
-        "logs": [f"[*] Đã trừ {total_cost:,}đ. Bắt đầu chạy {req.total} phiếu khảo sát..."],
+        "logs": init_logs,
     }
 
-    worker = threading.Thread(target=execute_campaign_worker, args=(task_id, username, req), daemon=True)
+    worker = threading.Thread(
+        target=execute_campaign_worker,
+        args=(task_id, username, req, paid_used, free_used),
+        daemon=True,
+    )
     worker.start()
-    return {"task_id": task_id, "new_balance": new_balance}
+    return {"task_id": task_id, "new_balance": new_balance, "new_free_trials": new_free}
 
 
 @app.post("/api/stop/{task_id}")
 def api_stop_campaign(task_id: str, username: str = Depends(get_current_user)):
-    if task_id not in TASKS or TASKS[task_id]["owner"] != username:
-        raise HTTPException(status_code=404, detail="Không tìm thấy phiên chạy.")
-    TASKS[task_id]["stop_requested"] = True
-    return {"ok": True}
+    if task_id in TASKS and TASKS[task_id]["owner"] == username:
+        TASKS[task_id]["stop_requested"] = True
+        return {"ok": True}
+    raise HTTPException(status_code=404, detail="Đơn hàng đã kết thúc hoặc không tồn tại.")
 
 
 @app.get("/api/status/{task_id}")

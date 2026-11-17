@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Auto Google Form - Hệ thống rải khảo sát tự động</title>
+  <title>Auto Google Form Studio by VQuy</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
@@ -15,7 +15,9 @@
     <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
       <div class="text-center mb-6">
         <h1 class="text-2xl font-bold text-indigo-400">Auto Google Form Studio by VQuy</h1>
-        <p class="text-slate-400 text-xs mt-1">Chi phí chỉ <span class="text-emerald-400 font-bold">250đ / 1 phiếu</span> — Nạp tiền tự động 24/7</p>
+        <p class="text-slate-400 text-xs mt-1.5">
+          Tặng ngay <span class="text-amber-400 font-bold">10 lượt miễn phí</span> khi tạo tài khoản — Sau đó chỉ <span class="text-emerald-400 font-bold">250đ / 1 phiếu</span>
+        </p>
       </div>
 
       <div class="grid grid-cols-2 bg-slate-950 p-1 rounded-lg border border-slate-800 mb-5">
@@ -25,7 +27,7 @@
         </button>
         <button id="tabRegisterBtn" onclick="switchAuthTab('register')"
           class="py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition cursor-pointer">
-          Tạo tài khoản mới
+          Tạo tài khoản (+10 Free)
         </button>
       </div>
 
@@ -56,19 +58,29 @@
   <!-- MÀN HÌNH CHÍNH SAU KHI ĐĂNG NHẬP                                      -->
   <!-- ===================================================================== -->
   <div id="mainApp" class="hidden max-w-5xl mx-auto px-4 py-6">
+    <!-- Top Header -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 shadow-lg">
       <div>
         <h1 class="text-xl font-bold text-indigo-400">Auto Google Form Studio by VQuy</h1>
         <p class="text-slate-400 text-xs mt-0.5">Đơn giá: <span class="text-emerald-400 font-semibold">250đ / 1 phiếu</span> (Hoàn tiền tự động nếu lỗi)</p>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-lg text-xs">
-          <span class="text-slate-400">Tài khoản:</span>
-          <span id="displayUsername" class="font-bold text-white ml-1"></span>
-          <span class="mx-2 text-slate-700">|</span>
-          <span class="text-slate-400">Số dư:</span>
-          <span id="displayBalance" class="font-bold text-emerald-400 ml-1">0đ</span>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <div class="bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-lg text-xs flex flex-wrap items-center gap-2">
+          <div>
+            <span class="text-slate-400">Tài khoản:</span>
+            <span id="displayUsername" class="font-bold text-white ml-1"></span>
+          </div>
+          <span class="text-slate-700">|</span>
+          <div>
+            <span class="text-slate-400">Free:</span>
+            <span id="displayFreeTrials" class="font-bold text-amber-400 ml-1">0 lượt</span>
+          </div>
+          <span class="text-slate-700">|</span>
+          <div>
+            <span class="text-slate-400">Số dư:</span>
+            <span id="displayBalance" class="font-bold text-emerald-400 ml-1">0đ</span>
+          </div>
         </div>
 
         <button onclick="openTopupModal()"
@@ -88,6 +100,7 @@
       </div>
     </div>
 
+    <!-- Bước 1: Quét Form -->
     <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6 shadow-lg">
       <label class="block text-sm font-semibold text-slate-300 mb-2">1. Dán đường link Google Form (Tắt Thu thập email & Giới hạn 1 lần trước khi chạy)</label>
       <div class="flex flex-col sm:flex-row gap-3">
@@ -101,7 +114,8 @@
       <p id="scanError" class="text-rose-400 text-xs mt-2 hidden"></p>
     </div>
 
-    <div id="workspace" class="hidden space-y-6">
+    <!-- Khu vực cấu hình chiến dịch -->
+    <div id="workspace" class="hidden space-y-6 mb-8">
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-4 mb-5">
           <div>
@@ -118,9 +132,9 @@
               class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-semibold text-white" />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Thành tiền (250đ/phiếu)</label>
-            <div id="costPreviewBox" class="w-full bg-slate-950 border border-emerald-500/40 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400">
-              2.500đ
+            <label class="block text-xs text-slate-400 mb-1">Chi phí dự kiến</label>
+            <div id="costPreviewBox" class="w-full bg-slate-950 border border-emerald-500/40 rounded-lg px-3 py-2 text-xs font-bold text-emerald-400 flex items-center h-[38px]">
+              Miễn phí 10 lượt
             </div>
           </div>
           <div>
@@ -138,12 +152,12 @@
 
       <div class="space-y-4" id="questionsContainer"></div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 sticky bottom-4 shadow-2xl">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-2xl">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div class="flex items-center gap-3">
             <button id="runBtn" onclick="startCampaign()"
               class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">
-              Thanh toán & Chạy Auto
+              Xác nhận & Chạy Auto
             </button>
             <button id="stopBtn" onclick="stopCampaign()"
               class="hidden bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
@@ -162,6 +176,57 @@
           <div id="logBox" class="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3 h-36 overflow-y-auto font-mono text-xs text-slate-300 space-y-1"></div>
         </div>
       </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- BẢNG LỊCH SỬ ĐƠN HÀNG ("Đơn hàng của bạn")                            -->
+    <!-- ===================================================================== -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <h2 class="text-lg font-bold text-white">Đơn hàng của bạn</h2>
+        <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 p-1 rounded-lg text-xs">
+          <span class="px-3 py-1 rounded-md bg-slate-800 text-white font-semibold">Điền form</span>
+          <button onclick="refreshProfile()" class="px-3 py-1 text-slate-400 hover:text-white transition cursor-pointer">
+            ↻ Làm mới
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800 text-xs text-slate-400">
+              <th class="py-3 px-3 font-medium w-12">#</th>
+              <th class="py-3 px-3 font-medium">Tên form</th>
+              <th class="py-3 px-3 font-medium">Số lượng</th>
+              <th class="py-3 px-3 font-medium">Trạng thái</th>
+              <th class="py-3 px-3 font-medium">Ngày tạo</th>
+              <th class="py-3 px-3 font-medium text-right">Hành động</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody" class="divide-y divide-slate-800/70 text-sm">
+            <tr>
+              <td colspan="6" class="py-8 text-center text-xs text-slate-500">Chưa có đơn hàng nào.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL XEM CHI TIẾT LOG ĐƠN HÀNG                                       -->
+  <!-- ===================================================================== -->
+  <div id="orderLogModal" class="hidden fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div>
+          <h3 id="modalOrderTitle" class="text-base font-bold text-white">Chi tiết tiến trình đơn hàng</h3>
+          <p id="modalOrderMeta" class="text-xs text-slate-400 mt-0.5"></p>
+        </div>
+        <button onclick="closeOrderLogModal()" class="text-slate-400 hover:text-white text-xl cursor-pointer">&times;</button>
+      </div>
+      <div id="modalOrderLogs" class="bg-slate-950 border border-slate-800 rounded-lg p-3.5 h-64 overflow-y-auto font-mono text-xs text-slate-300 space-y-1"></div>
     </div>
   </div>
 
@@ -282,7 +347,7 @@
       } else {
         document.getElementById("tabRegisterBtn").className = "py-2 text-xs font-semibold rounded-md bg-indigo-600 text-white transition cursor-pointer";
         document.getElementById("tabLoginBtn").className = "py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition cursor-pointer";
-        document.getElementById("authSubmitBtn").textContent = "Tạo tài khoản mới";
+        document.getElementById("authSubmitBtn").textContent = "Tạo tài khoản (+10 lượt Free)";
       }
     }
 
@@ -326,8 +391,10 @@
         document.getElementById("authScreen").classList.add("hidden");
         document.getElementById("mainApp").classList.remove("hidden");
         document.getElementById("displayUsername").textContent = currentUser.username;
+        document.getElementById("displayFreeTrials").textContent = (currentUser.free_trials || 0) + " lượt";
         document.getElementById("displayBalance").textContent = formatMoney(currentUser.balance);
         updateVietQR();
+        updateCostPreview();
 
         const adminBtn = document.getElementById("adminNavBtn");
         if (currentUser.is_admin) {
@@ -337,6 +404,7 @@
         }
 
         renderTxHistory(currentUser.transactions || []);
+        renderOrdersTable(currentUser.orders || []);
       } catch (e) {
         logout();
       }
@@ -356,7 +424,91 @@
 
     function updateCostPreview() {
       const total = Math.max(0, Number(document.getElementById("totalInput").value) || 0);
-      document.getElementById("costPreviewBox").textContent = formatMoney(total * PRICE_PER_SURVEY);
+      const freeAvail = currentUser ? (currentUser.free_trials || 0) : 0;
+      const freeUsed = Math.min(freeAvail, total);
+      const paidCount = total - freeUsed;
+      const moneyCost = paidCount * PRICE_PER_SURVEY;
+
+      const box = document.getElementById("costPreviewBox");
+      if (freeUsed > 0 && moneyCost === 0) {
+        box.textContent = `Miễn phí ${freeUsed} lượt (0đ)`;
+      } else if (freeUsed > 0 && moneyCost > 0) {
+        box.textContent = `${freeUsed} free + ${formatMoney(moneyCost)}`;
+      } else {
+        box.textContent = formatMoney(moneyCost);
+      }
+    }
+
+    // RENDER BẢNG "ĐƠN HÀNG CỦA BẠN"
+    function renderOrdersTable(orders) {
+      const tbody = document.getElementById("ordersTableBody");
+      if (!orders || !orders.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-500">Chưa có đơn hàng nào.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = orders.map((ord, idx) => {
+        const stt = String(orders.length - idx).padStart(2, "0");
+        const isRunning = ord.status === "Đang chạy";
+        let statusBadge = `<span class="inline-block px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">${escapeHtml(ord.status)}</span>`;
+        if (isRunning) {
+          statusBadge = `<span class="inline-block px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse">Đang chạy</span>`;
+        } else if (ord.status === "Đã dừng") {
+          statusBadge = `<span class="inline-block px-2.5 py-1 rounded-md text-xs font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">Đã dừng</span>`;
+        }
+
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3.5 px-3 text-slate-400 font-mono text-xs">${stt}</td>
+            <td class="py-3.5 px-3">
+              <div class="font-semibold text-white text-sm">${escapeHtml(ord.form_title)}</div>
+              <div class="text-xs text-slate-400 mt-0.5">Điền theo tỉ lệ · Rải đều</div>
+            </td>
+            <td class="py-3.5 px-3 font-mono text-xs font-semibold text-slate-200">
+              ${ord.success}/${ord.total}
+            </td>
+            <td class="py-3.5 px-3">${statusBadge}</td>
+            <td class="py-3.5 px-3 text-xs text-slate-400">${escapeHtml(ord.created_at)}</td>
+            <td class="py-3.5 px-3">
+              <div class="flex items-center justify-end gap-2.5">
+                ${isRunning ? `
+                  <button onclick="stopCampaignById('${ord.task_id}')" title="Dừng chạy đơn này"
+                    class="text-rose-400 hover:text-rose-300 p-1 rounded hover:bg-rose-500/10 cursor-pointer">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4h3v12H5V4zm7 0h3v12h-3V4z"/></svg>
+                  </button>
+                ` : ""}
+                <button onclick="openOrderLogModal(${idx})" title="Xem nhật ký chạy"
+                  class="text-indigo-400 hover:text-indigo-300 p-1 rounded hover:bg-indigo-500/10 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                </button>
+                <a href="${escapeHtml(ord.view_url)}" target="_blank" title="Mở biểu mẫu Google Form"
+                  class="text-slate-300 hover:text-white p-1 rounded hover:bg-slate-700/50">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                  </svg>
+                </a>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function openOrderLogModal(idx) {
+      if (!currentUser || !currentUser.orders || !currentUser.orders[idx]) return;
+      const ord = currentUser.orders[idx];
+      document.getElementById("modalOrderTitle").textContent = ord.form_title;
+      document.getElementById("modalOrderMeta").textContent = `Mã đơn: ${ord.task_id} • Tiến độ: ${ord.success}/${ord.total} phiếu • Trạng thái: ${ord.status}`;
+      const logs = ord.logs && ord.logs.length ? ord.logs : ["Không có dữ liệu nhật ký chi tiết."];
+      document.getElementById("modalOrderLogs").innerHTML = logs.map(l => `<div>${escapeHtml(l)}</div>`).join("");
+      document.getElementById("orderLogModal").classList.remove("hidden");
+    }
+
+    function closeOrderLogModal() {
+      document.getElementById("orderLogModal").classList.add("hidden");
     }
 
     function openTopupModal() {
@@ -375,15 +527,15 @@
       }
       box.innerHTML = list.map(tx => {
         const isPlus = tx.amount > 0;
+        const amtText = tx.amount === 0 ? "Free" : `${isPlus ? '+' : ''}${formatMoney(tx.amount)}`;
+        const colorCls = tx.amount === 0 ? "text-amber-400" : (isPlus ? "text-emerald-400" : "text-rose-400");
         return `
           <div class="flex items-center justify-between border-b border-slate-800/70 pb-1.5">
             <div>
               <div class="text-slate-200">${escapeHtml(tx.note)}</div>
               <div class="text-[10px] text-slate-500">${tx.created_at}</div>
             </div>
-            <div class="font-bold ${isPlus ? 'text-emerald-400' : 'text-rose-400'}">
-              ${isPlus ? '+' : ''}${formatMoney(tx.amount)}
-            </div>
+            <div class="font-bold ${colorCls}">${amtText}</div>
           </div>
         `;
       }).join("");
@@ -416,7 +568,7 @@
         listEl.innerHTML = data.users.map(u => `
           <div onclick="document.getElementById('adminTargetUser').value='${u.username}'"
             class="flex items-center justify-between bg-slate-900 hover:bg-slate-800 px-3 py-2 rounded cursor-pointer">
-            <span class="font-semibold text-white">${u.username}</span>
+            <span class="font-semibold text-white">${u.username} <span class="text-[11px] text-amber-400">(${u.free_trials} free)</span></span>
             <span class="font-bold text-emerald-400">${formatMoney(u.balance)}</span>
           </div>
         `).join("");
@@ -617,6 +769,7 @@
       errEl.classList.add("hidden");
 
       const payload = {
+        form_title: scannedData.form_title,
         view_url: scannedData.view_url,
         submit_url: scannedData.submit_url,
         page_history: scannedData.page_history,
@@ -642,21 +795,28 @@
       }
 
       document.getElementById("displayBalance").textContent = formatMoney(data.new_balance);
+      document.getElementById("displayFreeTrials").textContent = data.new_free_trials + " lượt";
       document.getElementById("runBtn").disabled = true;
       document.getElementById("stopBtn").classList.remove("hidden");
       document.getElementById("progressWrapper").classList.remove("hidden");
 
       currentTaskId = data.task_id;
+      refreshProfile(); // Cập nhật ngay dòng đơn hàng mới vào bảng lịch sử
       if (pollTimer) clearInterval(pollTimer);
-      pollTimer = setInterval(pollStatus, 1200);
+      pollTimer = setInterval(pollStatus, 1500);
     }
 
     async function stopCampaign() {
       if (!currentTaskId) return;
-      await fetch(`/api/stop/${currentTaskId}`, {
+      await stopCampaignById(currentTaskId);
+    }
+
+    async function stopCampaignById(taskId) {
+      await fetch(`/api/stop/${taskId}`, {
         method: "POST",
         headers: { "Authorization": "Bearer " + authToken }
       });
+      setTimeout(refreshProfile, 800);
     }
 
     async function pollStatus() {
@@ -675,11 +835,12 @@
       logBox.innerHTML = st.logs.map(line => `<div>${escapeHtml(line)}</div>`).join("");
       logBox.scrollTop = logBox.scrollHeight;
 
+      refreshProfile(); // Đồng bộ số lượng đang chạy trên bảng Đơn hàng của bạn
+
       if (st.status !== "running") {
         clearInterval(pollTimer);
         document.getElementById("runBtn").disabled = false;
         document.getElementById("stopBtn").classList.add("hidden");
-        refreshProfile();
       }
     }
 
