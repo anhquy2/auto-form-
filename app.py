@@ -13,18 +13,19 @@ from typing import Any, Dict, List, Optional
 
 import requests
 import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="Auto Google Form SaaS")
 
 # ==============================================================================
-# CẤU HÌNH GIÁ DỊCH VỤ & TÀI KHOẢN ADMIN DUY NHẤT
+# CẤU HÌNH DỊCH VỤ, ADMIN & WEBHOOK TỰ ĐỘNG CỘNG TIỀN
 # ==============================================================================
 PRICE_PER_SURVEY = 250  # 250 VNĐ / 1 phiếu khảo sát thành công
-ADMIN_USERNAME = "anhquy19"  # Tài khoản Admin duy nhất
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "anhquy1907")  # Mật khẩu đăng nhập của Admin
+ADMIN_USERNAME = "anhquy19"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "anhquy1907")
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "quy_secret_2026")  # Mã bảo mật Webhook
 DB_PATH = "survey_saas.db"
 
 SESSIONS: Dict[str, str] = {}
@@ -83,7 +84,14 @@ def init_db():
             )
             """
         )
-        # Tự động tạo sẵn duy nhất 1 tài khoản Admin để người khác không đăng ký trùng
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS processed_webhooks (
+                tx_ref TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         existing_admin = conn.execute(
             "SELECT id FROM users WHERE username = ?", (ADMIN_USERNAME.lower(),)
         ).fetchone()
@@ -136,7 +144,7 @@ def get_current_user(authorization: Optional[str] = Header(default=None)) -> str
 
 def get_admin_user(username: str = Depends(get_current_user)) -> str:
     if username != ADMIN_USERNAME.lower():
-        raise HTTPException(status_code=403, detail="Từ chối truy cập: Chỉ tài khoản Admin mới có quyền này!")
+        raise HTTPException(status_code=403, detail="Chỉ tài khoản Admin mới có quyền này!")
     return username
 
 
@@ -163,6 +171,64 @@ class AdminTopupRequest(BaseModel):
     target_username: str
     amount: int
     note: str = "Admin nạp tiền thủ công"
+
+
+# ==============================================================================
+# WEBHOOK TỰ ĐỘNG CỘNG TIỀN (SEPAY / CASSO)
+# ==============================================================================
+@app.post("/api/webhook/payment")
+async def api_payment_webhook(request: Request, authorization: Optional[str] = Header(default=None)):
+    # Xác thực mã bảo mật từ SePay (Header: Authorization: Apikey <WEBHOOK_SECRET>)
+    if WEBHOOK_SECRET:
+        expected = f"Apikey {WEBHOOK_SECRET}"
+        if authorization != expected and request.query_params.get("secret") != WEBHOOK_SECRET:
+            raise HTTPException(status_code=401, detail="Sai mã xác thực Webhook.")
+
+    data = await request.json()
+
+    # Hỗ trợ chuẩn dữ liệu SePay (transferType == 'in', transferAmount, content, id/referenceCode)
+    transfer_type = str(data.get("transferType", "in")).lower()
+    if transfer_type != "in":
+        return {"ok": True, "ignored": "Giao dịch tiền ra"}
+
+    amount = int(data.get("transferAmount") or data.get("amount") or 0)
+    content = str(data.get("content") or data.get("description") or "")
+    tx_ref = str(data.get("id") or data.get("referenceCode") or f"{amount}_{content}_{time.time()}")
+
+    if amount <= 0:
+        return {"ok": True, "ignored": "Số tiền không hợp lệ"}
+
+    # Tìm cú pháp: NAP <username> (không phân biệt hoa thường)
+    match = re.search(r"\bNAP\s*([a-z0-9_]{3,24})\b", content, re.IGNORECASE)
+    if not match:
+        return {"ok": True, "ignored": f"Không tìm thấy mã NAP <username> trong nội dung: {content}"}
+
+    target_username = match.group(1).lower()
+
+    # Chống cộng trùng 1 giao dịch nhiều lần
+    with DB_LOCK:
+        conn = get_db()
+        dup = conn.execute("SELECT tx_ref FROM processed_webhooks WHERE tx_ref = ?", (tx_ref,)).fetchone()
+        if dup:
+            conn.close()
+            return {"ok": True, "ignored": "Giao dịch đã được xử lý trước đó"}
+        conn.execute(
+            "INSERT INTO processed_webhooks (tx_ref, created_at) VALUES (?, ?)",
+            (tx_ref, datetime.now().strftime("%d/%m/%Y %H:%M:%S")),
+        )
+        conn.commit()
+        conn.close()
+
+    try:
+        new_bal = adjust_balance(
+            target_username,
+            amount,
+            "AUTO_TOPUP",
+            f"Nạp tự động qua ngân hàng (Mã GD: {tx_ref})",
+        )
+        return {"ok": True, "username": target_username, "added": amount, "new_balance": new_bal}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ==============================================================================
@@ -255,7 +321,7 @@ def api_me(username: str = Depends(get_current_user)):
 
 
 # ==============================================================================
-# API QUẢN TRỊ ADMIN (CHỈ TÀI KHOẢN ADMIN MỚI GỌI ĐƯỢC)
+# API QUẢN TRỊ ADMIN
 # ==============================================================================
 @app.get("/api/admin/users")
 def api_admin_users(admin_username: str = Depends(get_admin_user)):
