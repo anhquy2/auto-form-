@@ -178,11 +178,11 @@ class AdminTopupRequest(BaseModel):
 # ==============================================================================
 @app.post("/api/webhook/payment")
 async def api_payment_webhook(request: Request, authorization: Optional[str] = Header(default=None)):
-    # Xác thực mã bảo mật từ SePay (Header: Authorization: Apikey <WEBHOOK_SECRET>)
-        if WEBHOOK_SECRET:
-            auth_val = (authorization or "").strip()
-            if WEBHOOK_SECRET not in auth_val and request.query_params.get("secret") != WEBHOOK_SECRET:
-                    raise HTTPException(status_code=401, detail="Sai mã xác thực Webhook.")
+    # Xác thực mã bảo mật từ SePay
+    if WEBHOOK_SECRET:
+        auth_val = (authorization or "").strip()
+        if WEBHOOK_SECRET not in auth_val and request.query_params.get("secret") != WEBHOOK_SECRET:
+            raise HTTPException(status_code=401, detail="Sai mã xác thực Webhook.")
 
     data = await request.json()
 
